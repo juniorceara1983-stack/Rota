@@ -63,6 +63,13 @@ function getOrCreateSheet(name) {
 function iniciarRota(data) {
   try {
     const sheet = getOrCreateSheet(SHEET_ROTAS);
+    const rows  = sheet.getDataRange().getValues();
+    const nomeMotorista = (data.nome || '').trim().toLowerCase();
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][1]).trim().toLowerCase() === nomeMotorista && rows[i][8] === 'Em_Transito') {
+        return { success: false, error: 'Já existe uma rota ativa para este motorista. Finalize a rota anterior antes de iniciar uma nova.' };
+      }
+    }
     const id    = Utilities.getUuid();
     const ts    = data.timestamp || new Date().toISOString();
     sheet.appendRow([

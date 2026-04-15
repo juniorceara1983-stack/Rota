@@ -674,8 +674,9 @@ function fecharModal() {
 }
 
 function confirmarModal() {
+  var cb = _modalCallback;
   fecharModal();
-  if (_modalCallback) _modalCallback();
+  if (cb) cb();
 }
 
 // ─── Finalizar Rota ───────────────────────────────────────────
