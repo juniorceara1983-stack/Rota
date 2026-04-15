@@ -8,6 +8,9 @@ const SHEET_GPS      = 'GPS_Log';
 const SHEET_VEICULOS = 'Veiculos';
 const SHEET_CONFIG   = 'Config';
 
+// ID da planilha – necessário quando o script é chamado via doPost (web app standalone)
+const SPREADSHEET_ID = '1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ';
+
 // ── Roteamento de Páginas ────────────────────────────────────
 function doGet(e) {
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : 'driver';
@@ -23,7 +26,8 @@ function doGet(e) {
 
 // ── Utilitário: obter ou criar aba ───────────────────────────
 function getOrCreateSheet(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet() ||
+             SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
