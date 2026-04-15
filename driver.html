@@ -292,6 +292,11 @@
         <input id="modelo" type="text" class="form-control"
                placeholder="Ex: Fiat Uno, VW Gol" autocomplete="off">
       </div>
+      <div class="form-group">
+        <label class="form-label" for="km-inicio">Quilometragem Inicial (km) *</label>
+        <input id="km-inicio" type="number" min="0" step="0.1" class="form-control"
+               placeholder="Ex: 12345.6" autocomplete="off">
+      </div>
     </div>
 
     <div class="card">
@@ -357,6 +362,13 @@
           <div class="info-value" id="rt-obs-ini">–</div>
         </div>
       </div>
+      <div class="info-row">
+        <span class="info-icon">🛣️</span>
+        <div>
+          <div class="info-label">KM Inicial</div>
+          <div class="info-value" id="rt-km-inicio">–</div>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -376,6 +388,14 @@
     </div>
 
     <div id="err-rota" class="alert alert-error hidden"></div>
+    <div class="card">
+      <div class="card-title">Finalização da Rota</div>
+      <div class="form-group">
+        <label class="form-label" for="km-fim">Quilometragem Final (km) *</label>
+        <input id="km-fim" type="number" min="0" step="0.1" class="form-control"
+               placeholder="Informe a quilometragem no encerramento">
+      </div>
+    </div>
 
     <button id="btn-finalizar" class="btn btn-danger" onclick="confirmarFinalizar()"
             style="margin-top:4px">
@@ -414,6 +434,8 @@
 // ── URL do Google Apps Script implantado ────────────────────
 // Após implantar o Code.gs como Web App, cole a URL aqui:
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTW-OiT1BK-vw3HwH2EktiKRdTAO7yiIKBDvCGu3Dgpi8mlOS6Rvzhjc6fw5_gfUfXXA/exec';
+// Janela curta para evitar duplicidade de envio ao alternar rapidamente foco/visibilidade.
+var GPS_DUPLICATE_PROTECTION_INTERVAL_MS = 5000;
 
 // ── Chamada à API ────────────────────────────────────────────
 function callApi(action, data) {
@@ -432,6 +454,7 @@ var estado = {
   nome:          '',
   placa:         '',
   modelo:        '',
+  kmInicio:      '',
   obsInicial:    '',
   horaInicio:    null,
   intervalGPS:   10,
@@ -452,6 +475,7 @@ window.onload = function () {
         estado.nome          = r.nome          || '';
         estado.placa         = r.placa         || '';
         estado.modelo        = r.modelo        || '';
+        estado.kmInicio      = r.kmInicio      || '';
         estado.obsInicial    = r.obsInicial    || '';
         estado.horaInicio    = r.horaInicio    || null;
         estado.intervalGPS   = r.intervalGPS   || 10;
@@ -476,10 +500,7 @@ document.addEventListener('visibilitychange', function () {
   if (!estado.rotaId) return;
   if (document.visibilityState === 'visible') {
     var intervaloMs = estado.intervalGPS * 60 * 1000;
-    var agora = Date.now();
-    if (agora - (estado.ultimaGpsTsMs || 0) >= intervaloMs) {
-      enviarPosicaoGPS();
-    }
+    enviarPosicaoAoRetomar();
     if (estado.gpsTimer) clearInterval(estado.gpsTimer);
     estado.gpsTimer = setInterval(enviarPosicaoGPS, intervaloMs);
   } else {
@@ -488,6 +509,9 @@ document.addEventListener('visibilitychange', function () {
       estado.gpsTimer = null;
     }
   }
+});
+window.addEventListener('focus', function () {
+  if (estado.rotaId) enviarPosicaoAoRetomar();
 });
 
 // ─── Navegação ────────────────────────────────────────────────
@@ -505,6 +529,9 @@ function mostrarTelaRota() {
   document.getElementById('rt-veiculo').textContent = estado.placa + ' – ' + estado.modelo;
   document.getElementById('rt-inicio').textContent  = estado.horaInicio ? formatarData(estado.horaInicio) : '–';
   document.getElementById('rt-subtitle').textContent = estado.placa;
+  document.getElementById('rt-km-inicio').textContent = estado.kmInicio !== '' && estado.kmInicio !== null
+    ? Number(estado.kmInicio).toLocaleString('pt-BR') + ' km'
+    : '–';
 
   if (estado.obsInicial) {
     document.getElementById('rt-obs-ini').textContent = estado.obsInicial;
@@ -522,12 +549,17 @@ function iniciarRota() {
   var nome   = document.getElementById('nome').value.trim();
   var placa  = document.getElementById('placa').value.trim().toUpperCase();
   var modelo = document.getElementById('modelo').value.trim();
+  var kmInicio = document.getElementById('km-inicio').value.trim();
   var obs    = document.getElementById('obs-inicial').value.trim();
   var errEl  = document.getElementById('err-registro');
 
   if (!nome)   { mostrarErro(errEl, 'Por favor, informe seu nome.'); return; }
   if (!placa)  { mostrarErro(errEl, 'Por favor, informe a placa do veículo.'); return; }
   if (!modelo) { mostrarErro(errEl, 'Por favor, informe o modelo do veículo.'); return; }
+  if (!kmInicio || isNaN(Number(kmInicio)) || Number(kmInicio) < 0) {
+    mostrarErro(errEl, 'Por favor, informe uma quilometragem inicial válida.');
+    return;
+  }
   esconderErro(errEl);
 
   var btn = document.getElementById('btn-iniciar');
@@ -543,6 +575,7 @@ function iniciarRota() {
         estado.nome          = r.nome;
         estado.placa         = r.placa;
         estado.modelo        = r.modelo;
+        estado.kmInicio      = r.kmInicio || '';
         estado.obsInicial    = r.obsInicial;
         estado.horaInicio    = r.horaInicio;
         estado.observacoes   = [];
@@ -553,15 +586,15 @@ function iniciarRota() {
         return;
       }
       // Sem rota ativa – validar veículo e iniciar
-      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+      _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl);
     })
     .catch(function () {
       // Erro ao verificar – tentar iniciar normalmente
-      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+      _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl);
     });
 }
 
-function _validarEIniciar(nome, placa, modelo, obs, btn, errEl) {
+function _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl) {
   setBtnLoading(btn, true, '<span class="spinner"></span> Verificando veículo…');
 
   // Validar veículo antes de iniciar
@@ -579,7 +612,8 @@ function _validarEIniciar(nome, placa, modelo, obs, btn, errEl) {
         callApi('iniciarRota', {
           nome: nome, placa: placa, modelo: modelo,
           obsInicial: obs, timestamp: ts,
-          latitude: lat, longitude: lng
+          latitude: lat, longitude: lng,
+          kmInicio: Number(kmInicio)
         })
           .then(function (res) {
             setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
@@ -588,6 +622,7 @@ function _validarEIniciar(nome, placa, modelo, obs, btn, errEl) {
               estado.nome          = nome;
               estado.placa         = placa;
               estado.modelo        = modelo;
+              estado.kmInicio      = Number(kmInicio);
               estado.obsInicial    = obs;
               estado.horaInicio    = ts;
               estado.observacoes   = [];
@@ -687,6 +722,13 @@ function enviarPosicaoGPS() {
   );
 }
 
+function enviarPosicaoAoRetomar() {
+  var agora = Date.now();
+  // Evita duplicidade de envio em retornos rápidos de foco/visibilidade.
+  if (agora - (estado.ultimaGpsTsMs || 0) < GPS_DUPLICATE_PROTECTION_INTERVAL_MS) return;
+  enviarPosicaoGPS();
+}
+
 function atualizarBarraGPS(status, texto) {
   var icons = { on: '🟢', off: '🔴', wait: '🟡' };
   var iconEl = document.getElementById('gps-icon');
@@ -782,11 +824,23 @@ function confirmarFinalizar() {
 function _finalizarRota() {
   var btn   = document.getElementById('btn-finalizar');
   var errEl = document.getElementById('err-rota');
+  var kmFimRaw = document.getElementById('km-fim').value.trim();
+  var kmFimNum = Number(kmFimRaw);
+  if (!kmFimRaw || isNaN(kmFimNum) || kmFimNum < 0) {
+    mostrarErro(errEl, 'Informe uma quilometragem final válida para encerrar a rota.');
+    return;
+  }
+  if (estado.kmInicio !== '' && !isNaN(Number(estado.kmInicio)) && kmFimNum < Number(estado.kmInicio)) {
+    mostrarErro(errEl, 'A quilometragem final não pode ser menor que a inicial.');
+    return;
+  }
+  esconderErro(errEl);
   setBtnLoading(btn, true, '<span class="spinner"></span> Finalizando…');
   var ts = new Date().toISOString();
+  var kmFim = kmFimNum;
 
   function _chamar(lat, lng) {
-    callApi('finalizarRota', { rotaId: estado.rotaId, latitude: lat, longitude: lng, timestamp: ts })
+    callApi('finalizarRota', { rotaId: estado.rotaId, latitude: lat, longitude: lng, timestamp: ts, kmFim: kmFim })
       .then(function (res) {
         setBtnLoading(btn, false, '🔴 &nbsp; Finalizar Rota');
         if (res.success) {
@@ -819,7 +873,7 @@ function _finalizarRota() {
 function novaRota() {
   var intervaloSalvo = estado.intervalGPS;
   estado = {
-    rotaId: null, nome: '', placa: '', modelo: '',
+    rotaId: null, nome: '', placa: '', modelo: '', kmInicio: '',
     obsInicial: '', horaInicio: null,
     intervalGPS: intervaloSalvo,
     gpsTimer: null, observacoes: [], ultimaPos: null,
@@ -828,6 +882,8 @@ function novaRota() {
   document.getElementById('nome').value        = '';
   document.getElementById('placa').value       = '';
   document.getElementById('modelo').value      = '';
+  document.getElementById('km-inicio').value   = '';
+  document.getElementById('km-fim').value      = '';
   document.getElementById('obs-inicial').value = '';
   esconderErro(document.getElementById('err-registro'));
   mostrarTela('tela-registro');
@@ -840,6 +896,7 @@ function salvarEstado() {
     nome:          estado.nome,
     placa:         estado.placa,
     modelo:        estado.modelo,
+    kmInicio:      estado.kmInicio,
     obsInicial:    estado.obsInicial,
     horaInicio:    estado.horaInicio,
     intervalGPS:   estado.intervalGPS,

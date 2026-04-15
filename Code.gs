@@ -7,6 +7,9 @@ const SHEET_ROTAS    = 'Rotas';
 const SHEET_GPS      = 'GPS_Log';
 const SHEET_VEICULOS = 'Veiculos';
 const SHEET_CONFIG   = 'Config';
+const SHEET_ABAST    = 'Abastecimentos';
+// Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
+const ROTAS_EXPECTED_COLS = 15;
 
 // ID da planilha – necessário quando o script é chamado via doPost (web app standalone)
 const SPREADSHEET_ID = '1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ';
@@ -36,7 +39,8 @@ function getOrCreateSheet(name) {
         sheet.appendRow([
           'ID', 'Nome_Motorista', 'Placa', 'Modelo', 'Obs_Inicial',
           'Hora_Inicio', 'Lat_Inicio', 'Long_Inicio',
-          'Status', 'Obs_Viagem', 'Hora_Fim', 'Lat_Fim', 'Long_Fim'
+          'Status', 'Obs_Viagem', 'Hora_Fim', 'Lat_Fim', 'Long_Fim',
+          'Km_Inicio', 'Km_Fim'
         ]);
         sheet.setFrozenRows(1);
         break;
@@ -54,7 +58,13 @@ function getOrCreateSheet(name) {
         sheet.appendRow(['Senha_Supervisor', '123456']);
         sheet.setFrozenRows(1);
         break;
+      case SHEET_ABAST:
+        sheet.appendRow(['Placa', 'Quilometragem', 'Litros', 'Valor', 'Data_Hora']);
+        sheet.setFrozenRows(1);
+        break;
     }
+  } else if (name === SHEET_ROTAS) {
+    _ensureRotasColumns(sheet);
   }
   return sheet;
 }
@@ -63,6 +73,7 @@ function getOrCreateSheet(name) {
 function iniciarRota(data) {
   try {
     const sheet = getOrCreateSheet(SHEET_ROTAS);
+    _ensureRotasColumns(sheet);
     const rows  = sheet.getDataRange().getValues();
     const nomeMotorista = (data.nome || '').trim().toLowerCase();
     for (let i = 1; i < rows.length; i++) {
@@ -85,6 +96,8 @@ function iniciarRota(data) {
       '',
       '',
       '',
+      '',
+      _toNumberOrBlank(data.kmInicio),
       ''
     ]);
     _atualizarStatusVeiculo((data.placa || '').toUpperCase(), 'Em_Transito');
@@ -135,6 +148,7 @@ function adicionarObservacao(data) {
 function finalizarRota(data) {
   try {
     const sheet = getOrCreateSheet(SHEET_ROTAS);
+    _ensureRotasColumns(sheet);
     const rows  = sheet.getDataRange().getValues();
     const ts    = data.timestamp || new Date().toISOString();
     for (let i = 1; i < rows.length; i++) {
@@ -143,6 +157,7 @@ function finalizarRota(data) {
         sheet.getRange(i + 1, 11).setValue(ts);
         sheet.getRange(i + 1, 12).setValue(data.latitude  || '');
         sheet.getRange(i + 1, 13).setValue(data.longitude || '');
+        sheet.getRange(i + 1, 15).setValue(_toNumberOrBlank(data.kmFim));
         _atualizarStatusVeiculo(rows[i][2], 'Disponivel');
         return { success: true, timestamp: ts };
       }
@@ -279,7 +294,9 @@ function getDetalhesRota(rotaId) {
           obsViagem:  rotaRows[i][9],
           horaFim:    String(rotaRows[i][10]),
           latFim:     rotaRows[i][11],
-          longFim:    rotaRows[i][12]
+          longFim:    rotaRows[i][12],
+          kmInicio:   rotaRows[i][13] !== undefined ? rotaRows[i][13] : '',
+          kmFim:      rotaRows[i][14] !== undefined ? rotaRows[i][14] : ''
         };
         break;
       }
@@ -324,7 +341,7 @@ function gerarRelatorio(filtros) {
     // BOM UTF-8 para compatibilidade com Excel
     let csv = '\uFEFF';
     csv += '"ID","Nome_Motorista","Placa","Modelo","Obs_Inicial","Hora_Inicio",' +
-           '"Lat_Inicio","Long_Inicio","Status","Obs_Viagem","Hora_Fim","Lat_Fim","Long_Fim"\n';
+           '"Lat_Inicio","Long_Inicio","Status","Obs_Viagem","Hora_Fim","Lat_Fim","Long_Fim","Km_Inicio","Km_Fim"\n';
 
     const rotasFiltradas = [];
     for (let i = 1; i < rotaRows.length; i++) {
@@ -333,7 +350,13 @@ function gerarRelatorio(filtros) {
       if (dataInicio && String(row[5]) < dataInicio)             continue;
       if (dataFim    && String(row[5]) > dataFim)                continue;
       rotasFiltradas.push(row);
-      csv += row.map(function(c) {
+      const rowCsv = [
+        row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7],
+        row[8], row[9], row[10], row[11], row[12],
+        row[13] !== undefined ? row[13] : '',
+        row[14] !== undefined ? row[14] : ''
+      ];
+      csv += rowCsv.map(function(c) {
         return '"' + String(c).replace(/"/g, '""') + '"';
       }).join(',') + '\n';
     }
@@ -424,6 +447,12 @@ function doPost(e) {
         break;
       case 'buscarRotaAtivaMotorista':
         result = buscarRotaAtivaMotorista(payload.nome);
+        break;
+      case 'registrarAbastecimento':
+        result = registrarAbastecimento(payload);
+        break;
+      case 'listarAbastecimentos':
+        result = listarAbastecimentos(payload);
         break;
       default:
         result = { success: false, error: 'Ação desconhecida: ' + action };
@@ -544,6 +573,8 @@ function gerarRelatorioData(filtros) {
         horaFim:    String(row[10]),
         latFim:     String(row[11]),
         longFim:    String(row[12]),
+        kmInicio:   row[13] !== undefined ? String(row[13]) : '',
+        kmFim:      row[14] !== undefined ? String(row[14]) : '',
         gpsLog:     gpsIndex[rid] || []
       });
     }
@@ -590,7 +621,9 @@ function buscarPorPlaca(placa) {
           obsViagem:  String(rotaRows[i][9]),
           horaFim:    String(rotaRows[i][10]),
           latFim:     String(rotaRows[i][11]),
-          longFim:    String(rotaRows[i][12])
+          longFim:    String(rotaRows[i][12]),
+          kmInicio:   rotaRows[i][13] !== undefined ? String(rotaRows[i][13]) : '',
+          kmFim:      rotaRows[i][14] !== undefined ? String(rotaRows[i][14]) : ''
         });
       }
     }
@@ -601,18 +634,22 @@ function buscarPorPlaca(placa) {
 
     // Última posição GPS da rota mais recente
     const rotaAtual = rotas[0];
-    let ultimaPos = null;
+    const rotaIds = {};
+    for (let i = 0; i < rotas.length; i++) rotaIds[rotas[i].id] = true;
+    const localizacoes = [];
     for (let i = gpsRows.length - 1; i >= 1; i--) {
-      if (String(gpsRows[i][0]) === rotaAtual.id) {
-        ultimaPos = {
+      const rid = String(gpsRows[i][0]);
+      if (rotaIds[rid]) {
+        localizacoes.push({
+          rotaId: rid,
           timestamp:  String(gpsRows[i][1]),
           latitude:   gpsRows[i][2],
           longitude:  gpsRows[i][3],
           velocidade: gpsRows[i][4]
-        };
-        break;
+        });
       }
     }
+    let ultimaPos = localizacoes.length > 0 ? localizacoes[0] : null;
     // Fallback: ponto de início da rota
     if (!ultimaPos && rotaAtual.latInicio && rotaAtual.latInicio !== '') {
       ultimaPos = {
@@ -621,9 +658,22 @@ function buscarPorPlaca(placa) {
         longitude:  parseFloat(rotaAtual.longInicio),
         velocidade: ''
       };
+      localizacoes.push({
+        rotaId: rotaAtual.id,
+        timestamp:  rotaAtual.horaInicio,
+        latitude:   parseFloat(rotaAtual.latInicio),
+        longitude:  parseFloat(rotaAtual.longInicio),
+        velocidade: ''
+      });
     }
 
-    return { success: true, rota: rotaAtual, ultimaPos: ultimaPos, totalRotas: rotas.length };
+    return {
+      success: true,
+      rota: rotaAtual,
+      ultimaPos: ultimaPos,
+      localizacoes: localizacoes,
+      totalRotas: rotas.length
+    };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -645,7 +695,8 @@ function buscarRotaAtivaMotorista(nome) {
             placa:      String(rows[i][2]),
             modelo:     String(rows[i][3]),
             obsInicial: String(rows[i][4]),
-            horaInicio: String(rows[i][5])
+            horaInicio: String(rows[i][5]),
+            kmInicio:   rows[i][13] !== undefined ? String(rows[i][13]) : ''
           }
         };
       }
@@ -654,6 +705,65 @@ function buscarRotaAtivaMotorista(nome) {
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+function registrarAbastecimento(data) {
+  try {
+    const placa = (data.placa || '').toUpperCase().trim();
+    const km = data.quilometragem;
+    const litros = data.litros;
+    const valor = data.valor;
+    const dataHora = data.dataHora || new Date().toISOString();
+    if (!placa) return { success: false, error: 'Placa não informada.' };
+    if (km === undefined || km === null || km === '') return { success: false, error: 'Quilometragem obrigatória.' };
+    if (litros === undefined || litros === null || litros === '') return { success: false, error: 'Litros obrigatórios.' };
+    if (valor === undefined || valor === null || valor === '') return { success: false, error: 'Valor obrigatório.' };
+
+    const sheet = getOrCreateSheet(SHEET_ABAST);
+    sheet.appendRow([placa, Number(km), Number(litros), Number(valor), dataHora]);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function listarAbastecimentos(filtros) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_ABAST);
+    const rows = sheet.getDataRange().getValues();
+    const placaFiltro = filtros && filtros.placa ? String(filtros.placa).toUpperCase().trim() : '';
+    const itens = [];
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const placa = String(rows[i][0]).toUpperCase();
+      if (placaFiltro && placa !== placaFiltro) continue;
+      itens.push({
+        placa: placa,
+        quilometragem: rows[i][1],
+        litros: rows[i][2],
+        valor: rows[i][3],
+        dataHora: String(rows[i][4])
+      });
+    }
+    return { success: true, itens: itens };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function _ensureRotasColumns(sheet) {
+  try {
+    const header = sheet.getRange(1, 1, 1, Math.max(ROTAS_EXPECTED_COLS, sheet.getLastColumn())).getValues()[0];
+    const idxKmInicio = 13; // coluna 14
+    const idxKmFim = 14;    // coluna 15
+    if (header[idxKmInicio] !== 'Km_Inicio') sheet.getRange(1, idxKmInicio + 1).setValue('Km_Inicio');
+    if (header[idxKmFim] !== 'Km_Fim') sheet.getRange(1, idxKmFim + 1).setValue('Km_Fim');
+  } catch (err) {
+    Logger.log('Falha ao garantir colunas de quilometragem: ' + err.message);
+  }
+}
+
+function _toNumberOrBlank(value) {
+  return value !== undefined && value !== null && value !== '' ? Number(value) : '';
 }
 
 function _formatTs(iso) {
