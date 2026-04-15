@@ -7,8 +7,6 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0D47A1">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -371,6 +369,27 @@
     .login-title { font-size: 20px; font-weight: 700; color: var(--primary-dark); margin-bottom: 4px; }
     .login-sub   { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
     .login-card .form-group { text-align: left; }
+
+    /* ── Info grid (rastrear) ── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .info-item {
+      background: #F5F7FA;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .info-label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; margin-bottom: 3px; }
+    .info-val   { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -432,7 +451,8 @@
 <div class="tabs" id="tabs">
   <div class="tab active" onclick="selecionarTab('dashboard')">📊 Dashboard</div>
   <div class="tab"        onclick="selecionarTab('veiculos')">🚗 Veículos</div>
-  <div class="tab"        onclick="selecionarTab('config')">⚙️ Configurações</div>
+  <div class="tab"        onclick="selecionarTab('rastrear')">🔍 Rastrear</div>
+  <div class="tab"        onclick="selecionarTab('config')">⚙️ Config</div>
   <div class="tab"        onclick="selecionarTab('relatorios')">📄 Relatórios</div>
 </div>
 
@@ -553,6 +573,98 @@
 
 
 <!-- ══════════════════════════════════════════════════════════
+     TAB: RASTREAR
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-rastrear" class="tab-panel">
+
+  <div id="msg-rastrear" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🔍 Rastrear Veículo por Placa</div>
+        <div class="card-subtitle">Localização da última posição registrada</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label" for="rastr-placa">Placa do Veículo</label>
+        <input id="rastr-placa" type="text" class="form-control"
+               placeholder="Ex: ABC-1234"
+               style="text-transform:uppercase"
+               onkeydown="if(event.key==='Enter') buscarPorPlaca()">
+      </div>
+      <div class="form-group" style="flex:0;display:flex;align-items:flex-end">
+        <button class="btn btn-primary" onclick="buscarPorPlaca()" style="width:auto;padding:10px 22px">
+          🔍 Buscar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rastrear-result" class="hidden">
+    <div class="card">
+      <div class="card-header">
+        <div id="rastrear-veiculo-title" class="card-title"></div>
+        <div id="rastrear-status-badge" class="badge"></div>
+      </div>
+
+      <div class="info-grid" id="rastrear-info-grid">
+        <div class="info-item">
+          <span class="info-label">Motorista</span>
+          <span class="info-val" id="rastrear-motorista">–</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Início da Rota</span>
+          <span class="info-val" id="rastrear-inicio">–</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Fim da Rota</span>
+          <span class="info-val" id="rastrear-fim">–</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Total de Rotas</span>
+          <span class="info-val" id="rastrear-total">–</span>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);margin:12px 0 14px"></div>
+
+      <div class="card-title" style="margin-bottom:10px">📍 Última Posição Conhecida</div>
+      <div id="rastrear-sem-gps" class="hidden" style="color:var(--muted);font-size:14px;margin-bottom:12px">
+        Nenhuma posição GPS registrada para esta rota.
+      </div>
+      <div id="rastrear-pos-block">
+        <div class="info-grid" style="margin-bottom:12px">
+          <div class="info-item">
+            <span class="info-label">Timestamp</span>
+            <span class="info-val" id="rastrear-ts">–</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Velocidade</span>
+            <span class="info-val" id="rastrear-vel">–</span>
+          </div>
+        </div>
+        <div style="background:var(--primary-light);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Coordenadas (DMS)</div>
+          <div id="rastrear-dms" style="font-size:16px;font-weight:700;color:var(--primary-dark);font-family:monospace"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px" id="rastrear-decimal"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a id="rastrear-maps-btn" href="#" target="_blank" class="btn btn-success" style="width:auto;padding:10px 22px">
+            🗺️ &nbsp; Abrir no Google Maps
+          </a>
+          <a id="rastrear-route-btn" href="#" target="_blank" class="btn btn-outline" style="width:auto;padding:10px 20px">
+            📍 &nbsp; Ver Rota Completa
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
      TAB: CONFIGURAÇÕES
      ══════════════════════════════════════════════════════════ -->
 <div id="panel-config" class="tab-panel">
@@ -634,7 +746,7 @@
     <div class="card-header">
       <div>
         <div class="card-title">📄 Gerar Relatório de Rotas</div>
-        <div class="card-subtitle">Filtre por período e/ou placa e baixe o CSV</div>
+        <div class="card-subtitle">Filtre por período e/ou placa – abre em nova aba para imprimir/salvar como PDF</div>
       </div>
     </div>
 
@@ -786,13 +898,30 @@ function selecionarTab(nome) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
   var tabs = document.getElementById('tabs').querySelectorAll('.tab');
-  var ordem = ['dashboard', 'veiculos', 'config', 'relatorios'];
+  var ordem = ['dashboard', 'veiculos', 'rastrear', 'config', 'relatorios'];
   var idx   = ordem.indexOf(nome);
   if (idx >= 0) tabs[idx].classList.add('active');
   document.getElementById('panel-' + nome).classList.add('active');
 
   if (nome === 'veiculos')   carregarVeiculos();
   if (nome === 'dashboard')  carregarRotasAtivas();
+}
+
+// ─── Utilitário DMS ───────────────────────────────────────────
+function decimalToDMS(lat, lng) {
+  function toDMSPart(decimal, posDir, negDir) {
+    var d   = Math.abs(decimal);
+    var deg = Math.floor(d);
+    var mAll = (d - deg) * 60;
+    var min  = Math.floor(mAll);
+    var sec  = ((mAll - min) * 60).toFixed(1);
+    var dir  = decimal >= 0 ? posDir : negDir;
+    return deg + '°' + min + "'" + sec + '"' + dir;
+  }
+  var latNum = parseFloat(lat);
+  var lngNum = parseFloat(lng);
+  if (isNaN(latNum) || isNaN(lngNum)) return '';
+  return toDMSPart(latNum, 'N', 'S') + ' ' + toDMSPart(lngNum, 'E', 'W');
 }
 
 // ─── Dashboard ─────────────────────────────────────────────────
@@ -914,13 +1043,21 @@ function carregarDetalhes(rotaId) {
       if (gps.length > 0) {
         html += '<div class="detail-title" style="margin-top:10px">Log GPS (' + gps.length + ' pontos)</div>';
         html += '<div style="overflow-x:auto"><table class="gps-table">' +
-                '<tr><td><strong>Timestamp</strong></td><td><strong>Latitude</strong></td>' +
-                '<td><strong>Longitude</strong></td><td><strong>Velocidade</strong></td></tr>';
+                '<tr><td><strong>Timestamp</strong></td>' +
+                '<td><strong>Posição (DMS)</strong></td>' +
+                '<td><strong>Decimal</strong></td>' +
+                '<td><strong>Velocidade</strong></td>' +
+                '<td><strong>Mapa</strong></td></tr>';
         gps.forEach(function (pt) {
+          var dms = decimalToDMS(pt.latitude, pt.longitude);
+          var mapsUrl = 'https://www.google.com/maps?q=' + pt.latitude + ',' + pt.longitude;
           html += '<tr><td>' + esc(formatarData(pt.timestamp)) + '</td>' +
-                  '<td>' + esc(String(pt.latitude)) + '</td>' +
-                  '<td>' + esc(String(pt.longitude)) + '</td>' +
-                  '<td>' + (pt.velocidade !== '' ? esc(String(pt.velocidade)) + ' m/s' : '–') + '</td></tr>';
+                  '<td style="font-family:monospace;white-space:nowrap">' + esc(dms) + '</td>' +
+                  '<td style="font-size:11px;color:#888">' +
+                    esc(String(pt.latitude)) + ', ' + esc(String(pt.longitude)) +
+                  '</td>' +
+                  '<td>' + (pt.velocidade !== '' && pt.velocidade !== undefined ? esc(String(pt.velocidade)) + ' m/s' : '–') + '</td>' +
+                  '<td><a href="' + mapsUrl + '" target="_blank" style="font-size:11px">📍</a></td></tr>';
         });
         html += '</table></div>';
         // Link de rota no Maps
@@ -964,6 +1101,76 @@ function forcarFinalizar(rotaId, placa) {
     'Forçar encerramento',
     'btn-danger'
   );
+}
+
+// ─── Rastrear por Placa ────────────────────────────────────────
+function buscarPorPlaca() {
+  var placa = document.getElementById('rastr-placa').value.trim().toUpperCase();
+  if (!placa) { mostrarAlerta('msg-rastrear', 'Informe a placa do veículo.', 'error'); return; }
+  esconderAlerta('msg-rastrear');
+  document.getElementById('rastrear-result').classList.add('hidden');
+
+  callApi('buscarPorPlaca', { placa: placa })
+    .then(function (res) {
+      if (!res.success) {
+        mostrarAlerta('msg-rastrear', res.error || 'Veículo não encontrado.', 'error');
+        return;
+      }
+      renderRastrearResult(res);
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-rastrear', 'Erro de comunicação: ' + (err.message || err), 'error');
+    });
+}
+
+function renderRastrearResult(res) {
+  var r   = res.rota;
+  var pos = res.ultimaPos;
+
+  document.getElementById('rastrear-veiculo-title').textContent =
+    '🚗 ' + r.placa + ' – ' + r.modelo;
+
+  var badge = document.getElementById('rastrear-status-badge');
+  if (r.status === 'Em_Transito') {
+    badge.textContent = '🟢 Em Rota';
+    badge.style.cssText = 'background:#E8F5E9;color:#2E7D32;';
+  } else {
+    badge.textContent = '⚫ Inativo';
+    badge.style.cssText = 'background:#F5F5F5;color:#666;';
+  }
+
+  document.getElementById('rastrear-motorista').textContent = r.nome || '–';
+  document.getElementById('rastrear-inicio').textContent    = formatarData(r.horaInicio);
+  document.getElementById('rastrear-fim').textContent       = r.horaFim && r.horaFim !== '' && r.horaFim !== 'undefined'
+    ? formatarData(r.horaFim) : '–';
+  document.getElementById('rastrear-total').textContent     =
+    res.totalRotas + ' rota(s) no histórico';
+
+  if (!pos || (pos.latitude === '' && pos.longitude === '')) {
+    document.getElementById('rastrear-sem-gps').classList.remove('hidden');
+    document.getElementById('rastrear-pos-block').classList.add('hidden');
+  } else {
+    document.getElementById('rastrear-sem-gps').classList.add('hidden');
+    document.getElementById('rastrear-pos-block').classList.remove('hidden');
+
+    document.getElementById('rastrear-ts').textContent =
+      pos.timestamp ? formatarData(pos.timestamp) : '–';
+    document.getElementById('rastrear-vel').textContent =
+      (pos.velocidade !== '' && pos.velocidade !== undefined)
+        ? pos.velocidade + ' m/s' : '–';
+
+    var dms = decimalToDMS(pos.latitude, pos.longitude);
+    document.getElementById('rastrear-dms').textContent     = dms;
+    document.getElementById('rastrear-decimal').textContent =
+      'Lat: ' + pos.latitude + '  |  Long: ' + pos.longitude;
+
+    var mapsLink  = 'https://www.google.com/maps?q=' + pos.latitude + ',' + pos.longitude;
+    var routeLink = 'https://www.google.com/maps/search/?api=1&query=' + pos.latitude + ',' + pos.longitude;
+    document.getElementById('rastrear-maps-btn').href  = mapsLink;
+    document.getElementById('rastrear-route-btn').href = routeLink;
+  }
+
+  document.getElementById('rastrear-result').classList.remove('hidden');
 }
 
 // ─── Veículos ──────────────────────────────────────────────────
@@ -1108,7 +1315,7 @@ function gerarRelatorio() {
       }
       gerarPDF(res.rotas || [], dataInicio, dataFim, placa);
       mostrarAlerta('msg-relatorio',
-        '✅ Relatório gerado com ' + (res.total || 0) + ' rota(s). Download iniciado.', 'success');
+        '✅ Relatório com ' + (res.total || 0) + ' rota(s). Use o botão Imprimir para salvar como PDF.', 'success');
     })
     .catch(function (err) {
       btn.disabled  = false;
@@ -1118,98 +1325,96 @@ function gerarRelatorio() {
 }
 
 function gerarPDF(rotas, dataInicio, dataFim, placa) {
-  var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-  // Cabeçalho
-  doc.setFillColor(13, 71, 161);
-  doc.rect(0, 0, 297, 20, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Relatório de Rotas – Sistema de Monitoramento', 148, 13, { align: 'center' });
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
   var filtroTxt = 'Gerado em: ' + new Date().toLocaleString('pt-BR');
-  if (dataInicio) filtroTxt += '   |   De: ' + dataInicio;
-  if (dataFim)    filtroTxt += '   Até: ' + dataFim;
-  if (placa)      filtroTxt += '   |   Placa: ' + placa;
-  doc.text(filtroTxt, 14, 27);
+  if (dataInicio) filtroTxt += '  |  De: ' + dataInicio;
+  if (dataFim)    filtroTxt += '  Até: ' + dataFim;
+  if (placa)      filtroTxt += '  |  Placa: ' + placa;
 
+  var rotasHtml = '';
   if (rotas.length === 0) {
-    doc.setFontSize(12);
-    doc.text('Nenhuma rota encontrada para os filtros selecionados.', 14, 40);
-    doc.save('relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.pdf');
-    return;
+    rotasHtml = '<p style="padding:20px;text-align:center;color:#666">Nenhuma rota encontrada para os filtros selecionados.</p>';
+  } else {
+    rotasHtml += '<table><thead><tr>' +
+      '<th>#</th><th>Motorista</th><th>Placa</th><th>Modelo</th>' +
+      '<th>Início</th><th>Fim</th><th>Status</th><th>Obs. Inicial</th>' +
+      '</tr></thead><tbody>';
+    rotas.forEach(function (r, i) {
+      var status = r.status === 'Em_Transito' ? 'Em Trânsito'
+                 : r.status === 'Finalizado'  ? 'Finalizado' : r.status;
+      rotasHtml += '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + esc(r.nome) + '</td>' +
+        '<td><strong>' + esc(r.placa) + '</strong></td>' +
+        '<td>' + esc(r.modelo) + '</td>' +
+        '<td>' + esc(formatarData(r.horaInicio)) + '</td>' +
+        '<td>' + (r.horaFim && r.horaFim !== '' ? esc(formatarData(r.horaFim)) : '–') + '</td>' +
+        '<td>' + esc(status) + '</td>' +
+        '<td>' + esc((r.obsInicial || '').substring(0, 80)) + '</td>' +
+        '</tr>';
+    });
+    rotasHtml += '</tbody></table>';
+
+    // Detalhes por rota
+    rotas.forEach(function (r) {
+      if (!r.obsViagem && (!r.gpsLog || r.gpsLog.length === 0)) return;
+      rotasHtml += '<div style="page-break-before:always"></div>';
+      rotasHtml += '<h3>' + esc(r.nome) + ' – ' + esc(r.placa) + ' (' + esc(r.modelo) + ')</h3>';
+      if (r.obsViagem) {
+        rotasHtml += '<h4>Ocorrências de Viagem</h4>' +
+          '<p style="white-space:pre-wrap">' + esc(r.obsViagem) + '</p>';
+      }
+      if (r.gpsLog && r.gpsLog.length > 0) {
+        rotasHtml += '<h4>Log GPS (' + r.gpsLog.length + ' pontos)</h4>';
+        rotasHtml += '<table><thead><tr><th>Timestamp</th><th>Posição (DMS)</th><th>Decimal</th><th>Velocidade</th></tr></thead><tbody>';
+        r.gpsLog.forEach(function (p) {
+          var dms = decimalToDMS(p.latitude, p.longitude);
+          rotasHtml += '<tr>' +
+            '<td>' + esc(formatarData(p.timestamp)) + '</td>' +
+            '<td style="font-family:monospace">' + esc(dms) + '</td>' +
+            '<td style="font-size:11px;color:#888">' + esc(String(p.latitude)) + ', ' + esc(String(p.longitude)) + '</td>' +
+            '<td>' + (p.velocidade !== '' && p.velocidade !== undefined ? esc(String(p.velocidade)) + ' m/s' : '–') + '</td>' +
+            '</tr>';
+        });
+        rotasHtml += '</tbody></table>';
+      }
+    });
   }
 
-  // Tabela de rotas
-  var rotaRows = rotas.map(function (r) {
-    return [
-      r.nome,
-      r.placa,
-      r.modelo,
-      formatarData(r.horaInicio),
-      formatarData(r.horaFim) || '–',
-      r.status === 'Em_Transito' ? 'Em Trânsito' : (r.status === 'Finalizado' ? 'Finalizado' : r.status),
-      (r.obsInicial || '').substring(0, 60)
-    ];
-  });
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+    '<title>Relatório de Rotas</title>' +
+    '<style>' +
+    'body{font-family:Arial,sans-serif;font-size:12px;color:#222;margin:0;padding:0}' +
+    '.report-header{background:#0D47A1;color:#fff;padding:18px 24px}' +
+    '.report-header h1{margin:0;font-size:18px}' +
+    '.report-header p{margin:4px 0 0;font-size:11px;opacity:.85}' +
+    '.report-body{padding:20px 24px}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:20px}' +
+    'th{background:#1565C0;color:#fff;padding:7px 8px;text-align:left;font-size:11px}' +
+    'td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}' +
+    'tr:nth-child(even) td{background:#F0F5FF}' +
+    'h3{color:#0D47A1;margin:0 0 8px;font-size:14px}' +
+    'h4{color:#444;margin:14px 0 6px;font-size:12px;text-transform:uppercase}' +
+    '.btn-print{background:#1565C0;color:#fff;border:none;padding:10px 22px;font-size:13px;border-radius:6px;cursor:pointer;margin:12px 0}' +
+    '@media print{.btn-print{display:none}@page{margin:1.5cm;size:A4}}' +
+    '</style></head><body>' +
+    '<div class="report-header">' +
+    '<h1>Relatório de Rotas – Sistema de Monitoramento</h1>' +
+    '<p>' + esc(filtroTxt) + '</p>' +
+    '</div>' +
+    '<div class="report-body">' +
+    '<button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>' +
+    rotasHtml +
+    '<button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>' +
+    '</div></body></html>';
 
-  doc.autoTable({
-    startY: 32,
-    head: [['Motorista', 'Placa', 'Modelo', 'Início', 'Fim', 'Status', 'Obs. Inicial']],
-    body: rotaRows,
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [21, 101, 192], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [240, 245, 255] },
-    margin: { left: 14, right: 14 }
-  });
-
-  // Detalhes de observações e GPS por rota
-  rotas.forEach(function (r) {
-    if (!r.obsViagem && (!r.gpsLog || r.gpsLog.length === 0)) return;
-    doc.addPage();
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Detalhes: ' + r.nome + ' – ' + r.placa + ' (' + r.modelo + ')', 14, 15);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-
-    var y = 22;
-    if (r.obsViagem) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('Ocorrências de Viagem:', 14, y);
-      doc.setFont('helvetica', 'normal');
-      y += 6;
-      var linhas = doc.splitTextToSize(r.obsViagem, 270);
-      doc.text(linhas, 14, y);
-      y += linhas.length * 5 + 4;
-    }
-
-    if (r.gpsLog && r.gpsLog.length > 0) {
-      var gpsRows = r.gpsLog.map(function (p) {
-        return [
-          formatarData(p.timestamp),
-          String(p.latitude),
-          String(p.longitude),
-          p.velocidade !== '' && p.velocidade !== undefined ? String(p.velocidade) + ' m/s' : '–'
-        ];
-      });
-      doc.autoTable({
-        startY: y,
-        head: [['Timestamp', 'Latitude', 'Longitude', 'Velocidade']],
-        body: gpsRows,
-        styles: { fontSize: 7, cellPadding: 1.5 },
-        headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [240, 248, 240] },
-        margin: { left: 14, right: 14 }
-      });
-    }
-  });
-
-  doc.save('relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.pdf');
+  var win = window.open('', '_blank');
+  if (!win) {
+    mostrarAlerta('msg-relatorio', 'Permita janelas pop-up para gerar o PDF.', 'error');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  setTimeout(function () { win.print(); }, 600);
 }
 
 // ─── Utilitários DOM ───────────────────────────────────────────

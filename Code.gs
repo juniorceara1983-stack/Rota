@@ -412,6 +412,9 @@ function doPost(e) {
       case 'alterarSenha':
         result = alterarSenha(payload);
         break;
+      case 'buscarPorPlaca':
+        result = buscarPorPlaca(payload.placa);
+        break;
       default:
         result = { success: false, error: 'Ação desconhecida: ' + action };
     }
@@ -549,6 +552,70 @@ function _atualizarStatusVeiculo(placa, status) {
       sheet.getRange(i + 1, 3).setValue(status);
       return;
     }
+  }
+}
+
+// ── Buscar Rota por Placa ────────────────────────────────────
+function buscarPorPlaca(placa) {
+  try {
+    if (!placa) return { success: false, error: 'Placa não informada.' };
+    const placaUp   = placa.toUpperCase().trim();
+    const rotaRows  = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
+    const gpsRows   = getOrCreateSheet(SHEET_GPS).getDataRange().getValues();
+
+    // Coletar todas as rotas da placa, do mais recente ao mais antigo
+    const rotas = [];
+    for (let i = rotaRows.length - 1; i >= 1; i--) {
+      if (String(rotaRows[i][2]).toUpperCase() === placaUp) {
+        rotas.push({
+          id:         String(rotaRows[i][0]),
+          nome:       String(rotaRows[i][1]),
+          placa:      String(rotaRows[i][2]),
+          modelo:     String(rotaRows[i][3]),
+          obsInicial: String(rotaRows[i][4]),
+          horaInicio: String(rotaRows[i][5]),
+          latInicio:  String(rotaRows[i][6]),
+          longInicio: String(rotaRows[i][7]),
+          status:     String(rotaRows[i][8]),
+          obsViagem:  String(rotaRows[i][9]),
+          horaFim:    String(rotaRows[i][10]),
+          latFim:     String(rotaRows[i][11]),
+          longFim:    String(rotaRows[i][12])
+        });
+      }
+    }
+
+    if (rotas.length === 0) {
+      return { success: false, error: 'Nenhuma rota encontrada para a placa ' + placaUp + '.' };
+    }
+
+    // Última posição GPS da rota mais recente
+    const rotaAtual = rotas[0];
+    let ultimaPos = null;
+    for (let i = gpsRows.length - 1; i >= 1; i--) {
+      if (String(gpsRows[i][0]) === rotaAtual.id) {
+        ultimaPos = {
+          timestamp:  String(gpsRows[i][1]),
+          latitude:   gpsRows[i][2],
+          longitude:  gpsRows[i][3],
+          velocidade: gpsRows[i][4]
+        };
+        break;
+      }
+    }
+    // Fallback: ponto de início da rota
+    if (!ultimaPos && rotaAtual.latInicio && rotaAtual.latInicio !== '') {
+      ultimaPos = {
+        timestamp:  rotaAtual.horaInicio,
+        latitude:   parseFloat(rotaAtual.latInicio),
+        longitude:  parseFloat(rotaAtual.longInicio),
+        velocidade: ''
+      };
+    }
+
+    return { success: true, rota: rotaAtual, ultimaPos: ultimaPos, totalRotas: rotas.length };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 }
 
