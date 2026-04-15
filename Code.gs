@@ -435,7 +435,7 @@ function validarVeiculo(data) {
     const rows   = sheet.getDataRange().getValues();
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0] === placa) {
-        if (rows[i][1].toLowerCase() !== modelo) {
+        if (rows[i][1].trim().toLowerCase() !== modelo) {
           return { success: false, error: 'Modelo incorreto. Modelo cadastrado: ' + rows[i][1] };
         }
         if (rows[i][2] === 'Em_Transito') {

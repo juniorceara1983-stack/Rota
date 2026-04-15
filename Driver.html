@@ -612,7 +612,6 @@ function adicionarObservacao() {
   if (!obs) { mostrarErro(errEl, 'Digite uma observação antes de adicionar.'); return; }
 
   var btn   = document.getElementById('btn-add-obs');
-  var errEl = document.getElementById('err-rota');
   setBtnLoading(btn, true, '<span class="spinner spinner-dark"></span> Enviando…');
 
   var ts = new Date().toISOString();
