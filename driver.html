@@ -434,6 +434,7 @@
 // ── URL do Google Apps Script implantado ────────────────────
 // Após implantar o Code.gs como Web App, cole a URL aqui:
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTW-OiT1BK-vw3HwH2EktiKRdTAO7yiIKBDvCGu3Dgpi8mlOS6Rvzhjc6fw5_gfUfXXA/exec';
+var GPS_RETORNO_MIN_MS = 5000;
 
 // ── Chamada à API ────────────────────────────────────────────
 function callApi(action, data) {
@@ -723,7 +724,7 @@ function enviarPosicaoGPS() {
 function enviarPosicaoAoRetomar() {
   var agora = Date.now();
   // Evita duplicidade de envio em retornos rápidos de foco/visibilidade.
-  if (agora - (estado.ultimaGpsTsMs || 0) < 5000) return;
+  if (agora - (estado.ultimaGpsTsMs || 0) < GPS_RETORNO_MIN_MS) return;
   enviarPosicaoGPS();
 }
 

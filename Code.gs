@@ -8,6 +8,7 @@ const SHEET_GPS      = 'GPS_Log';
 const SHEET_VEICULOS = 'Veiculos';
 const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
+const ROTAS_MIN_COLS = 15;
 
 // ID da planilha – necessário quando o script é chamado via doPost (web app standalone)
 const SPREADSHEET_ID = '1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ';
@@ -756,7 +757,7 @@ function listarAbastecimentos(filtros) {
 
 function _ensureRotasColumns(sheet) {
   try {
-    const header = sheet.getRange(1, 1, 1, Math.max(15, sheet.getLastColumn())).getValues()[0];
+    const header = sheet.getRange(1, 1, 1, Math.max(ROTAS_MIN_COLS, sheet.getLastColumn())).getValues()[0];
     const idxKmInicio = 13; // coluna 14
     const idxKmFim = 14;    // coluna 15
     if (header[idxKmInicio] !== 'Km_Inicio') sheet.getRange(1, idxKmInicio + 1).setValue('Km_Inicio');

@@ -1261,17 +1261,41 @@ function renderRastrearResult(res) {
     document.getElementById('rastrear-localizacoes-empty').classList.add('hidden');
     document.getElementById('rastrear-localizacoes-wrap').classList.remove('hidden');
     localizacoes.forEach(function (pt) {
+      var latNum = Number(pt.latitude);
+      var lngNum = Number(pt.longitude);
+      if (!isFinite(latNum) || !isFinite(lngNum)) return;
       var tr = document.createElement('tr');
-      var lat = pt.latitude;
-      var lng = pt.longitude;
-      var mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
-      tr.innerHTML =
-        '<td style="white-space:nowrap">' + esc(formatarData(pt.timestamp)) + '</td>' +
-        '<td style="font-family:monospace">' + esc(String(lat)) + ', ' + esc(String(lng)) + '</td>' +
-        '<td>' + esc(fmtVel(pt.velocidade)) + '</td>' +
-        '<td><a class="btn btn-outline btn-sm" href="' + mapsUrl + '" target="_blank">🗺️ Abrir</a></td>';
+
+      var tdData = document.createElement('td');
+      tdData.style.whiteSpace = 'nowrap';
+      tdData.textContent = formatarData(pt.timestamp);
+
+      var tdCoords = document.createElement('td');
+      tdCoords.style.fontFamily = 'monospace';
+      tdCoords.textContent = String(latNum) + ', ' + String(lngNum);
+
+      var tdVel = document.createElement('td');
+      tdVel.textContent = fmtVel(pt.velocidade);
+
+      var tdMapa = document.createElement('td');
+      var btnMapa = document.createElement('a');
+      btnMapa.className = 'btn btn-outline btn-sm';
+      btnMapa.textContent = '🗺️ Abrir';
+      btnMapa.target = '_blank';
+      btnMapa.rel = 'noopener noreferrer';
+      btnMapa.href = 'https://www.google.com/maps?q=' + encodeURIComponent(latNum + ',' + lngNum);
+      tdMapa.appendChild(btnMapa);
+
+      tr.appendChild(tdData);
+      tr.appendChild(tdCoords);
+      tr.appendChild(tdVel);
+      tr.appendChild(tdMapa);
       locBody.appendChild(tr);
     });
+    if (!locBody.children.length) {
+      document.getElementById('rastrear-localizacoes-empty').classList.remove('hidden');
+      document.getElementById('rastrear-localizacoes-wrap').classList.add('hidden');
+    }
   }
 
   document.getElementById('rastrear-result').classList.remove('hidden');
