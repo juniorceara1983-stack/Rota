@@ -340,6 +340,66 @@ function gerarRelatorio(filtros) {
   }
 }
 
+// ── API REST para GitHub Pages ───────────────────────────────
+// Recebe chamadas fetch() feitas a partir das páginas no GitHub Pages.
+// O corpo deve ser JSON com o campo "action" indicando a operação.
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var action  = payload.action;
+    var result;
+
+    switch (action) {
+      case 'iniciarRota':
+        result = iniciarRota(payload);
+        break;
+      case 'registrarPontoGPS':
+        result = registrarPontoGPS(payload);
+        break;
+      case 'adicionarObservacao':
+        result = adicionarObservacao(payload);
+        break;
+      case 'finalizarRota':
+        result = finalizarRota(payload);
+        break;
+      case 'forcarFinalizarRota':
+        result = forcarFinalizarRota(payload.rotaId);
+        break;
+      case 'liberarVeiculo':
+        result = liberarVeiculo(payload);
+        break;
+      case 'getRotasAtivas':
+        result = getRotasAtivas();
+        break;
+      case 'getVeiculos':
+        result = getVeiculos();
+        break;
+      case 'getConfig':
+        result = getConfig();
+        break;
+      case 'setConfig':
+        result = setConfig(payload);
+        break;
+      case 'getDetalhesRota':
+        result = getDetalhesRota(payload.rotaId);
+        break;
+      case 'gerarRelatorio':
+        result = gerarRelatorio(payload);
+        break;
+      default:
+        result = { success: false, error: 'Ação desconhecida: ' + action };
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 // ── Funções privadas ─────────────────────────────────────────
 function _atualizarStatusVeiculo(placa, status) {
   const sheet = getOrCreateSheet(SHEET_VEICULOS);

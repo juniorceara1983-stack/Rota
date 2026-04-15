@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Painel do Motorista – Sistema de Rotas</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:       #1565C0;
+      --primary-dark:  #0D47A1;
+      --success:       #2E7D32;
+      --danger:        #C62828;
+      --warning-bg:    #FFF8E1;
+      --bg:            #ECEFF1;
+      --card:          #FFFFFF;
+      --text:          #212121;
+      --muted:         #757575;
+      --border:        #CFD8DC;
+      --shadow:        0 2px 8px rgba(0,0,0,0.12);
+      --radius:        12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--primary);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-icon   { font-size: 26px; line-height: 1; }
+    .header-title  { font-size: 17px; font-weight: 700; }
+    .header-sub    { font-size: 12px; opacity: 0.82; margin-top: 1px; }
+
+    /* ── Screens ── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Content ── */
+    .content {
+      padding: 16px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Form ── */
+    .form-group  { margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label  {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 5px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 12px 13px;
+      font-size: 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(21,101,192,.15);
+    }
+    textarea.form-control { resize: vertical; min-height: 76px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: background .15s, transform .1s, opacity .15s;
+    }
+    .btn:active    { transform: scale(0.98); }
+    .btn:disabled  { opacity: .55; cursor: not-allowed; }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-danger  { background: var(--danger);  color: #fff; }
+
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--primary);
+      color: var(--primary);
+      padding: 12px;
+    }
+    .btn-outline:hover:not(:disabled) { background: rgba(21,101,192,.06); }
+
+    /* ── Info rows ── */
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon  { font-size: 18px; flex-shrink: 0; line-height: 1.6; }
+    .info-label { font-size: 11px; color: var(--muted); margin-bottom: 1px; }
+    .info-value { font-size: 15px; font-weight: 500; }
+
+    /* ── GPS bar ── */
+    .gps-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: 11px 14px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .alert-error   { background: #FFEBEE; color: #C62828; border-left: 4px solid #C62828; }
+    .alert-success { background: #E8F5E9; color: #2E7D32; border-left: 4px solid #2E7D32; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2.5px solid rgba(255,255,255,.35);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin .75s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .spinner-dark {
+      border-color: rgba(21,101,192,.25);
+      border-top-color: var(--primary);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Obs list ── */
+    .obs-item {
+      background: #F5F5F5;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    .obs-item:last-child { margin-bottom: 0; }
+    .obs-time { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+
+    /* ── Success screen ── */
+    .success-icon  { font-size: 64px; text-align: center; margin: 20px 0 8px; }
+    .success-title { font-size: 22px; font-weight: 700; text-align: center; color: var(--success); }
+    .success-sub   { text-align: center; color: var(--muted); margin: 6px 0 22px; font-size: 14px; }
+    .success-time  { font-size: 22px; font-weight: 700; color: var(--primary); text-align: center; margin-bottom: 20px; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     TELA 1 – REGISTRO
+     ══════════════════════════════════════════════════════════ -->
+<div id="tela-registro" class="screen active">
+  <div class="header">
+    <div class="header-icon">🚗</div>
+    <div>
+      <div class="header-title">Sistema de Rotas</div>
+      <div class="header-sub">Painel do Motorista</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="err-registro" class="alert alert-error hidden"></div>
+
+    <div class="card">
+      <div class="card-title">Dados do Motorista</div>
+      <div class="form-group">
+        <label class="form-label" for="nome">Nome Completo *</label>
+        <input id="nome" type="text" class="form-control"
+               placeholder="Seu nome completo" autocomplete="name">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Dados do Veículo</div>
+      <div class="form-group">
+        <label class="form-label" for="placa">Placa do Veículo *</label>
+        <input id="placa" type="text" class="form-control"
+               placeholder="AAA-0000 ou AAA0A00"
+               autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="modelo">Modelo do Veículo *</label>
+        <input id="modelo" type="text" class="form-control"
+               placeholder="Ex: Fiat Uno, VW Gol" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Observações de Avaria (opcional)</div>
+      <div class="form-group">
+        <textarea id="obs-inicial" class="form-control" rows="3"
+          placeholder="Descreva avarias ou irregularidades observadas antes de iniciar a rota..."></textarea>
+      </div>
+    </div>
+
+    <button id="btn-iniciar" class="btn btn-primary" onclick="iniciarRota()">
+      🟢 &nbsp; Iniciar Rota
+    </button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TELA 2 – ROTA ATIVA
+     ══════════════════════════════════════════════════════════ -->
+<div id="tela-rota" class="screen">
+  <div class="header">
+    <div class="header-icon">📍</div>
+    <div>
+      <div class="header-title">Rota em Andamento</div>
+      <div class="header-sub" id="rt-subtitle">Em trânsito</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="gps-bar" class="gps-bar">
+      <span id="gps-icon">🟡</span>
+      <span id="gps-status">Aguardando sinal GPS…</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Informações da Rota</div>
+      <div class="info-row">
+        <span class="info-icon">👤</span>
+        <div>
+          <div class="info-label">Motorista</div>
+          <div class="info-value" id="rt-nome">–</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🚗</span>
+        <div>
+          <div class="info-label">Veículo</div>
+          <div class="info-value" id="rt-veiculo">–</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">⏰</span>
+        <div>
+          <div class="info-label">Iniciada às</div>
+          <div class="info-value" id="rt-inicio">–</div>
+        </div>
+      </div>
+      <div class="info-row" id="rt-obs-ini-row">
+        <span class="info-icon">📋</span>
+        <div>
+          <div class="info-label">Obs. Inicial</div>
+          <div class="info-value" id="rt-obs-ini">–</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Registrar Ocorrência</div>
+      <div class="form-group">
+        <textarea id="nova-obs" class="form-control" rows="3"
+          placeholder="Descreva o imprevisto ou ocorrência durante a viagem…"></textarea>
+      </div>
+      <button id="btn-add-obs" class="btn btn-outline" onclick="adicionarObservacao()">
+        + &nbsp; Adicionar Observação
+      </button>
+    </div>
+
+    <div id="obs-list-card" class="card hidden">
+      <div class="card-title">Ocorrências Registradas</div>
+      <div id="obs-list"></div>
+    </div>
+
+    <div id="err-rota" class="alert alert-error hidden"></div>
+
+    <button id="btn-finalizar" class="btn btn-danger" onclick="confirmarFinalizar()"
+            style="margin-top:4px">
+      🔴 &nbsp; Finalizar Rota
+    </button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TELA 3 – FINALIZADA
+     ══════════════════════════════════════════════════════════ -->
+<div id="tela-final" class="screen">
+  <div class="header">
+    <div class="header-icon">✅</div>
+    <div>
+      <div class="header-title">Rota Finalizada</div>
+      <div class="header-sub">Obrigado!</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="card" style="text-align:center; padding: 28px 18px">
+      <div class="success-icon">✅</div>
+      <div class="success-title">Rota Concluída!</div>
+      <div class="success-sub">Sua rota foi registrada com sucesso.</div>
+      <div class="info-label" style="margin-bottom:4px">Finalizada às</div>
+      <div class="success-time" id="fin-hora">–</div>
+      <button class="btn btn-primary" onclick="novaRota()">🚗 &nbsp; Nova Rota</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── URL do Google Apps Script implantado ────────────────────
+// Após implantar o Code.gs como Web App, cole a URL aqui:
+var SCRIPT_URL = 'COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT';
+
+// ── Chamada à API ────────────────────────────────────────────
+function callApi(action, data) {
+  var payload = Object.assign({ action: action }, data || {});
+  return fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  }).then(function (res) { return res.json(); });
+}
+
+// ─── Estado ───────────────────────────────────────────────────
+var estado = {
+  rotaId:      null,
+  nome:        '',
+  placa:       '',
+  modelo:      '',
+  obsInicial:  '',
+  horaInicio:  null,
+  intervalGPS: 10,
+  gpsTimer:    null,
+  observacoes: [],
+  ultimaPos:   null
+};
+
+// ─── Inicialização ────────────────────────────────────────────
+window.onload = function () {
+  var saved = localStorage.getItem('rotaAtiva');
+  if (saved) {
+    try {
+      var r = JSON.parse(saved);
+      if (r && r.rotaId) {
+        estado.rotaId      = r.rotaId;
+        estado.nome        = r.nome        || '';
+        estado.placa       = r.placa       || '';
+        estado.modelo      = r.modelo      || '';
+        estado.obsInicial  = r.obsInicial  || '';
+        estado.horaInicio  = r.horaInicio  || null;
+        estado.intervalGPS = r.intervalGPS || 10;
+        estado.observacoes = r.observacoes || [];
+        mostrarTelaRota();
+        return;
+      }
+    } catch (_) {}
+  }
+
+  callApi('getConfig')
+    .then(function (res) {
+      if (res && res.success && res.config && res.config.Intervalo_GPS) {
+        estado.intervalGPS = parseInt(res.config.Intervalo_GPS, 10) || 10;
+      }
+    });
+};
+
+// ─── Navegação ────────────────────────────────────────────────
+function mostrarTela(id) {
+  document.querySelectorAll('.screen').forEach(function (s) {
+    s.classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function mostrarTelaRota() {
+  mostrarTela('tela-rota');
+  document.getElementById('rt-nome').textContent    = estado.nome;
+  document.getElementById('rt-veiculo').textContent = estado.placa + ' – ' + estado.modelo;
+  document.getElementById('rt-inicio').textContent  = estado.horaInicio ? formatarData(estado.horaInicio) : '–';
+  document.getElementById('rt-subtitle').textContent = estado.placa;
+
+  if (estado.obsInicial) {
+    document.getElementById('rt-obs-ini').textContent = estado.obsInicial;
+    document.getElementById('rt-obs-ini-row').classList.remove('hidden');
+  } else {
+    document.getElementById('rt-obs-ini-row').classList.add('hidden');
+  }
+
+  renderObservacoes();
+  iniciarGPS();
+}
+
+// ─── Iniciar Rota ─────────────────────────────────────────────
+function iniciarRota() {
+  var nome   = document.getElementById('nome').value.trim();
+  var placa  = document.getElementById('placa').value.trim().toUpperCase();
+  var modelo = document.getElementById('modelo').value.trim();
+  var obs    = document.getElementById('obs-inicial').value.trim();
+  var errEl  = document.getElementById('err-registro');
+
+  if (!nome)   { mostrarErro(errEl, 'Por favor, informe seu nome.'); return; }
+  if (!placa)  { mostrarErro(errEl, 'Por favor, informe a placa do veículo.'); return; }
+  if (!modelo) { mostrarErro(errEl, 'Por favor, informe o modelo do veículo.'); return; }
+  esconderErro(errEl);
+
+  var btn = document.getElementById('btn-iniciar');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Iniciando…');
+
+  var ts = new Date().toISOString();
+
+  function _chamar(lat, lng) {
+    callApi('iniciarRota', {
+      nome: nome, placa: placa, modelo: modelo,
+      obsInicial: obs, timestamp: ts,
+      latitude: lat, longitude: lng
+    })
+      .then(function (res) {
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        if (res.success) {
+          estado.rotaId      = res.id;
+          estado.nome        = nome;
+          estado.placa       = placa;
+          estado.modelo      = modelo;
+          estado.obsInicial  = obs;
+          estado.horaInicio  = ts;
+          estado.observacoes = [];
+          salvarEstado();
+          mostrarTelaRota();
+        } else {
+          mostrarErro(errEl, 'Erro ao iniciar rota: ' + (res.error || 'desconhecido'));
+        }
+      })
+      .catch(function (err) {
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+      });
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
+      function ()    { _chamar('', ''); },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  } else {
+    _chamar('', '');
+  }
+}
+
+// ─── GPS Tracking ─────────────────────────────────────────────
+function iniciarGPS() {
+  atualizarBarraGPS('wait', 'Aguardando sinal GPS…');
+  enviarPosicaoGPS();
+  if (estado.gpsTimer) clearInterval(estado.gpsTimer);
+  estado.gpsTimer = setInterval(enviarPosicaoGPS, estado.intervalGPS * 60 * 1000);
+}
+
+function pararGPS() {
+  if (estado.gpsTimer) {
+    clearInterval(estado.gpsTimer);
+    estado.gpsTimer = null;
+  }
+}
+
+function enviarPosicaoGPS() {
+  if (!navigator.geolocation) {
+    atualizarBarraGPS('off', 'GPS não disponível neste dispositivo.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      estado.ultimaPos = pos;
+      atualizarBarraGPS('on',
+        'GPS ativo – ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5));
+      if (estado.rotaId) {
+        callApi('registrarPontoGPS', {
+          rotaId:     estado.rotaId,
+          latitude:   pos.coords.latitude,
+          longitude:  pos.coords.longitude,
+          velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
+                        ? pos.coords.speed : '',
+          timestamp:  new Date().toISOString()
+        }).catch(function () {});
+      }
+    },
+    function (e) { atualizarBarraGPS('off', 'GPS indisponível: ' + e.message); },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function atualizarBarraGPS(status, texto) {
+  var icons = { on: '🟢', off: '🔴', wait: '🟡' };
+  var iconEl = document.getElementById('gps-icon');
+  var txtEl  = document.getElementById('gps-status');
+  if (iconEl) iconEl.textContent = icons[status] || '🟡';
+  if (txtEl)  txtEl.textContent  = texto;
+}
+
+// ─── Observação de Viagem ─────────────────────────────────────
+function adicionarObservacao() {
+  var textarea = document.getElementById('nova-obs');
+  var obs      = textarea.value.trim();
+  if (!obs) { alert('Digite uma observação antes de adicionar.'); return; }
+
+  var btn   = document.getElementById('btn-add-obs');
+  var errEl = document.getElementById('err-rota');
+  setBtnLoading(btn, true, '<span class="spinner spinner-dark"></span> Enviando…');
+
+  var ts = new Date().toISOString();
+  callApi('adicionarObservacao', { rotaId: estado.rotaId, observacao: obs, timestamp: ts })
+    .then(function (res) {
+      setBtnLoading(btn, false, '+ &nbsp; Adicionar Observação');
+      if (res.success) {
+        estado.observacoes.push({ ts: ts, texto: obs });
+        salvarEstado();
+        renderObservacoes();
+        textarea.value = '';
+        esconderErro(errEl);
+      } else {
+        mostrarErro(errEl, 'Erro: ' + (res.error || ''));
+      }
+    })
+    .catch(function (err) {
+      setBtnLoading(btn, false, '+ &nbsp; Adicionar Observação');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    });
+}
+
+function renderObservacoes() {
+  var list = document.getElementById('obs-list');
+  var card = document.getElementById('obs-list-card');
+  list.innerHTML = '';
+  if (!estado.observacoes || estado.observacoes.length === 0) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+  estado.observacoes.forEach(function (o) {
+    var div = document.createElement('div');
+    div.className = 'obs-item';
+    div.innerHTML =
+      '<div class="obs-time">' + formatarData(o.ts) + '</div>' +
+      '<div>' + escapeHtml(o.texto) + '</div>';
+    list.appendChild(div);
+  });
+}
+
+// ─── Finalizar Rota ───────────────────────────────────────────
+function confirmarFinalizar() {
+  if (!confirm('Deseja realmente finalizar esta rota?')) return;
+  _finalizarRota();
+}
+
+function _finalizarRota() {
+  var btn   = document.getElementById('btn-finalizar');
+  var errEl = document.getElementById('err-rota');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Finalizando…');
+  var ts = new Date().toISOString();
+
+  function _chamar(lat, lng) {
+    callApi('finalizarRota', { rotaId: estado.rotaId, latitude: lat, longitude: lng, timestamp: ts })
+      .then(function (res) {
+        setBtnLoading(btn, false, '🔴 &nbsp; Finalizar Rota');
+        if (res.success) {
+          pararGPS();
+          localStorage.removeItem('rotaAtiva');
+          document.getElementById('fin-hora').textContent = formatarData(res.timestamp || ts);
+          mostrarTela('tela-final');
+        } else {
+          mostrarErro(errEl, 'Erro ao finalizar: ' + (res.error || ''));
+        }
+      })
+      .catch(function (err) {
+        setBtnLoading(btn, false, '🔴 &nbsp; Finalizar Rota');
+        mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+      });
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
+      function ()    { _chamar('', ''); },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  } else {
+    _chamar('', '');
+  }
+}
+
+// ─── Nova Rota ────────────────────────────────────────────────
+function novaRota() {
+  var intervaloSalvo = estado.intervalGPS;
+  estado = {
+    rotaId: null, nome: '', placa: '', modelo: '',
+    obsInicial: '', horaInicio: null,
+    intervalGPS: intervaloSalvo,
+    gpsTimer: null, observacoes: [], ultimaPos: null
+  };
+  document.getElementById('nome').value        = '';
+  document.getElementById('placa').value       = '';
+  document.getElementById('modelo').value      = '';
+  document.getElementById('obs-inicial').value = '';
+  esconderErro(document.getElementById('err-registro'));
+  mostrarTela('tela-registro');
+}
+
+// ─── Utilitários ──────────────────────────────────────────────
+function salvarEstado() {
+  localStorage.setItem('rotaAtiva', JSON.stringify({
+    rotaId:      estado.rotaId,
+    nome:        estado.nome,
+    placa:       estado.placa,
+    modelo:      estado.modelo,
+    obsInicial:  estado.obsInicial,
+    horaInicio:  estado.horaInicio,
+    intervalGPS: estado.intervalGPS,
+    observacoes: estado.observacoes
+  }));
+}
+
+function formatarData(iso) {
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('pt-BR') + ' às ' +
+           d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return iso; }
+}
+
+function setBtnLoading(btn, loading, html) {
+  btn.disabled   = loading;
+  btn.innerHTML  = html;
+}
+
+function mostrarErro(el, msg) {
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function esconderErro(el) {
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

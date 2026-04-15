@@ -4,14 +4,13 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 
 ---
 
-## 🔗 Links do Sistema Implantado
+## 🔗 Links do Sistema (GitHub Pages)
 
 | Recurso | Link |
 |---|---|
-| **Web App (Script)** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec) |
-| **Planilha Google Sheets** | [https://docs.google.com/spreadsheets/d/1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ](https://docs.google.com/spreadsheets/d/1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ) |
-| **Painel do Motorista** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver) |
-| **Painel do Supervisor** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor) |
+| **Página Inicial** | [https://juniorceara1983-stack.github.io/Rota/](https://juniorceara1983-stack.github.io/Rota/) |
+| **Painel do Motorista** | [https://juniorceara1983-stack.github.io/Rota/driver.html](https://juniorceara1983-stack.github.io/Rota/driver.html) |
+| **Painel do Supervisor** | [https://juniorceara1983-stack.github.io/Rota/supervisor.html](https://juniorceara1983-stack.github.io/Rota/supervisor.html) |
 
 ---
 
@@ -40,9 +39,12 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 
 | Arquivo | Descrição |
 |---|---|
-| `Code.gs` | Backend Google Apps Script |
-| `Driver.html` | Painel do Motorista (HTML template do Apps Script) |
-| `Supervisor.html` | Painel do Supervisor (HTML template do Apps Script) |
+| `index.html` | Página inicial (GitHub Pages) – links para os dois painéis |
+| `driver.html` | Painel do Motorista (GitHub Pages) |
+| `supervisor.html` | Painel do Supervisor (GitHub Pages) |
+| `Code.gs` | Backend Google Apps Script (API + banco de dados) |
+| `Driver.html` | Template original para Apps Script (legado) |
+| `Supervisor.html` | Template original para Apps Script (legado) |
 | `appsscript.json` | Manifest do projeto Apps Script |
 
 ---
@@ -52,57 +54,60 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 ### Pré-requisitos
 - Conta Google (Google Workspace ou conta pessoal)
 - Acesso ao Google Sheets e Google Apps Script
+- Repositório no GitHub com GitHub Pages ativado
+
+---
 
 ### Passo a Passo
 
-#### 1. Criar a Planilha
+#### 1. Ativar GitHub Pages
+1. No repositório, vá em **Settings → Pages**.
+2. Em **Source**, selecione o branch `main` e a pasta `/ (root)`.
+3. Clique em **Save**. O site ficará disponível em `https://juniorceara1983-stack.github.io/Rota/`.
+
+#### 2. Criar a Planilha
 1. Acesse [sheets.google.com](https://sheets.google.com) e crie uma nova planilha em branco.
-2. Anote a **URL** da planilha (será usada para vincular ao Apps Script).
 
-#### 2. Abrir o Editor do Apps Script
+#### 3. Criar o Apps Script (API)
 1. Na planilha criada, vá em **Extensões → Apps Script**.
-2. O editor do Apps Script será aberto.
+2. **Apague** o conteúdo padrão do arquivo `Código.gs`.
+3. **Copie** o conteúdo de [`Code.gs`](./Code.gs) e cole no editor.
+4. Salve o projeto.
 
-#### 3. Configurar o Projeto
-1. **Apagar** o conteúdo padrão do arquivo `Código.gs`.
-2. **Copiar** o conteúdo de [`Code.gs`](./Code.gs) e colar no editor.
-3. Criar um novo arquivo HTML clicando em **+** → **HTML** e nomear como `Driver` (sem extensão).
-   - Copiar o conteúdo de [`Driver.html`](./Driver.html) para este arquivo.
-4. Criar outro arquivo HTML chamado `Supervisor` (sem extensão).
-   - Copiar o conteúdo de [`Supervisor.html`](./Supervisor.html) para este arquivo.
-5. O fuso horário já está configurado como `America/Sao_Paulo` no arquivo `appsscript.json` incluído neste repositório. Copie também o conteúdo desse arquivo para **Arquivo → Configurações do projeto → Mostrar arquivo de manifesto "appsscript.json"** no editor do Apps Script, se necessário.
-
-> ⚠️ Os arquivos HTML no Apps Script **não devem ter a extensão `.html`** — apenas o nome: `Driver` e `Supervisor`.
-
-#### 4. Publicar como Web App
+#### 4. Publicar o Apps Script como Web App
 1. Clique em **Implantar → Nova implantação**.
 2. Selecione o tipo **Aplicativo da Web**.
 3. Configure:
    - **Executar como:** Eu (conta do proprietário)
-   - **Quem tem acesso:** Qualquer pessoa (ou "Qualquer pessoa dentro da organização" para maior segurança)
+   - **Quem tem acesso:** Qualquer pessoa
 4. Clique em **Implantar** e copie a **URL do Web App** gerada.
 
-#### 5. Autorizar Permissões
-Na primeira execução, o Google solicitará autorização para acessar a planilha. Siga as instruções na tela para conceder as permissões necessárias.
+#### 5. Configurar a URL nos arquivos HTML
+1. Em `driver.html`, localize a linha:
+   ```js
+   var SCRIPT_URL = 'COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT';
+   ```
+   Substitua pelo URL copiado no passo anterior.
+2. Faça o mesmo em `supervisor.html`.
+3. Faça commit e push das alterações para o GitHub.
+
+#### 6. Autorizar Permissões
+Na primeira execução do Apps Script, o Google solicitará autorização para acessar a planilha. Siga as instruções na tela.
 
 ---
 
 ## 📱 Como Usar
 
 ### Motorista
-Acesse a URL do Web App (ou com `?page=driver`):
+Acesse:
 ```
-https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec
-```
-ou
-```
-https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver
+https://juniorceara1983-stack.github.io/Rota/driver.html
 ```
 
 ### Supervisor
-Acesse a URL do Web App com o parâmetro `?page=supervisor`:
+Acesse:
 ```
-https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor
+https://juniorceara1983-stack.github.io/Rota/supervisor.html
 ```
 
 ---
