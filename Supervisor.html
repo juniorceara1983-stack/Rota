@@ -633,7 +633,7 @@ function renderDashboard(rotas) {
 
   document.getElementById('stat-ativas').textContent = rotas.length;
   document.getElementById('header-ativas').textContent =
-    rotas.length + (rotas.length === 1 ? ' em rota' : ' em rota');
+    rotas.length === 1 ? '1 veículo em rota' : rotas.length + ' veículos em rota';
   document.getElementById('ultima-atualizacao').textContent =
     'Última atualização: ' + new Date().toLocaleTimeString('pt-BR');
 

@@ -491,7 +491,7 @@ function iniciarRota() {
     navigator.geolocation.getCurrentPosition(
       function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
       function ()    { _chamar('', ''); },
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   } else {
     _chamar('', '');
@@ -636,7 +636,7 @@ function _finalizarRota() {
     navigator.geolocation.getCurrentPosition(
       function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
       function ()    { _chamar('', ''); },
-      { timeout: 8000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   } else {
     _chamar('', '');

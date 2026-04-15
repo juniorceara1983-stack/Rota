@@ -59,7 +59,7 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
    - Copiar o conteúdo de [`Driver.html`](./Driver.html) para este arquivo.
 4. Criar outro arquivo HTML chamado `Supervisor` (sem extensão).
    - Copiar o conteúdo de [`Supervisor.html`](./Supervisor.html) para este arquivo.
-5. Clique em **Arquivo → Propriedades do projeto** e defina o fuso horário como **America/Sao_Paulo**.
+5. O fuso horário já está configurado como `America/Sao_Paulo` no arquivo `appsscript.json` incluído neste repositório. Copie também o conteúdo desse arquivo para **Arquivo → Configurações do projeto → Mostrar arquivo de manifesto "appsscript.json"** no editor do Apps Script, se necessário.
 
 > ⚠️ Os arquivos HTML no Apps Script **não devem ter a extensão `.html`** — apenas o nome: `Driver` e `Supervisor`.
 
