@@ -4,6 +4,17 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 
 ---
 
+## 🔗 Links do Sistema Implantado
+
+| Recurso | Link |
+|---|---|
+| **Web App (Script)** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec) |
+| **Planilha Google Sheets** | [https://docs.google.com/spreadsheets/d/1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ](https://docs.google.com/spreadsheets/d/1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ) |
+| **Painel do Motorista** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver) |
+| **Painel do Supervisor** | [https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor](https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor) |
+
+---
+
 ## ✨ Funcionalidades
 
 ### Painel do Motorista
@@ -81,17 +92,17 @@ Na primeira execução, o Google solicitará autorização para acessar a planil
 ### Motorista
 Acesse a URL do Web App (ou com `?page=driver`):
 ```
-https://script.google.com/macros/s/SEU_ID/exec
+https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec
 ```
 ou
 ```
-https://script.google.com/macros/s/SEU_ID/exec?page=driver
+https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=driver
 ```
 
 ### Supervisor
 Acesse a URL do Web App com o parâmetro `?page=supervisor`:
 ```
-https://script.google.com/macros/s/SEU_ID/exec?page=supervisor
+https://script.google.com/macros/s/AKfycbwl89xIMXBC5M_LVE1xgOeAod0a4PZZ0eWU3_BQm3l1ZmnM8CvChWtAbXDpnSU8zaCaLQ/exec?page=supervisor
 ```
 
 ---
