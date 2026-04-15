@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Painel do Supervisor – Sistema de Rotas</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0D47A1">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -324,9 +329,85 @@
       .header-badge { display: none; }
       .tab { padding: 12px 14px; font-size: 13px; }
     }
+
+    /* ── Modal de Confirmação ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 100;
+    }
+    .modal-box {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 90%; max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.22);
+      z-index: 101;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+    .modal-msg   { font-size: 14px; color: var(--muted); line-height: 1.55; margin-bottom: 18px; }
+    .modal-btns  { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-btns .btn { width: auto; padding: 9px 20px; font-size: 14px; }
+
+    /* ── Tela de Login ── */
+    .login-screen {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .login-card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 32px 28px;
+      width: 90%; max-width: 360px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.14);
+      text-align: center;
+    }
+    .login-icon  { font-size: 48px; margin-bottom: 10px; }
+    .login-title { font-size: 20px; font-weight: 700; color: var(--primary-dark); margin-bottom: 4px; }
+    .login-sub   { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
+    .login-card .form-group { text-align: left; }
   </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════════════════════════════════
+     TELA DE LOGIN
+     ══════════════════════════════════════════════════════════ -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-icon">🔒</div>
+    <div class="login-title">Painel do Supervisor</div>
+    <div class="login-sub">Sistema de Monitoramento de Rotas</div>
+    <div id="login-err" class="alert alert-error hidden" style="text-align:left;margin-bottom:14px"></div>
+    <div class="form-group">
+      <label class="form-label" for="login-senha">Senha de Acesso</label>
+      <input id="login-senha" type="password" class="form-control"
+             placeholder="Digite a senha"
+             onkeydown="if(event.key==='Enter') fazerLogin()">
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="fazerLogin()">
+      🔓 &nbsp; Entrar
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL DE CONFIRMAÇÃO
+     ══════════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="fecharModal()"></div>
+<div id="modal-box" class="modal-box hidden">
+  <div id="modal-title" class="modal-title"></div>
+  <div id="modal-msg"   class="modal-msg"></div>
+  <div class="modal-btns">
+    <button class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+    <button id="modal-ok" class="btn btn-danger" onclick="confirmarModal()">Confirmar</button>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      HEADER
@@ -339,7 +420,10 @@
       <div class="header-sub">Painel do Supervisor</div>
     </div>
   </div>
-  <div class="header-badge" id="header-ativas">– em rota</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="header-badge" id="header-ativas">– em rota</div>
+    <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="fazerLogout()">🚪 Sair</button>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -503,6 +587,28 @@
 
   <div class="card">
     <div class="card-header">
+      <div class="card-title">🔑 Alterar Senha de Acesso</div>
+    </div>
+    <div id="msg-senha" class="hidden" style="margin-bottom:12px"></div>
+    <div class="form-group">
+      <label class="form-label" for="senha-atual">Senha Atual</label>
+      <input id="senha-atual" type="password" class="form-control" placeholder="Senha atual">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="senha-nova">Nova Senha</label>
+      <input id="senha-nova" type="password" class="form-control" placeholder="Nova senha">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="senha-confirma">Confirmar Nova Senha</label>
+      <input id="senha-confirma" type="password" class="form-control" placeholder="Repita a nova senha">
+    </div>
+    <button class="btn btn-primary" style="width:auto;padding:10px 22px" onclick="alterarSenha()">
+      💾 &nbsp; Salvar Nova Senha
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
       <div class="card-title">ℹ️ Instruções de Acesso</div>
     </div>
     <p style="font-size:14px;line-height:1.7;color:var(--muted)">
@@ -550,7 +656,7 @@
     </div>
 
     <button id="btn-gerar" class="btn btn-primary btn-block" onclick="gerarRelatorio()">
-      📊 &nbsp; Gerar e Baixar Relatório CSV
+      📄 &nbsp; Gerar e Baixar Relatório PDF
     </button>
   </div>
 
@@ -559,10 +665,10 @@
       <div class="card-title">📋 Sobre o Relatório</div>
     </div>
     <p style="font-size:14px;line-height:1.7;color:var(--muted)">
-      O relatório CSV inclui:<br>
+      O relatório PDF inclui:<br>
       • <strong>Dados da Rota:</strong> Nome, placa, modelo, horários de início e fim, status, observações.<br>
       • <strong>Log GPS:</strong> Todos os pontos registrados com timestamp, latitude, longitude e velocidade.<br><br>
-      O arquivo é gerado em UTF-8 com BOM para compatibilidade com Microsoft Excel e Google Sheets.
+      O arquivo é gerado em formato PDF e salvo automaticamente no seu dispositivo.
     </p>
   </div>
 </div>
@@ -590,17 +696,90 @@ function callApi(action, data) {
 var autoRefreshTimer = null;
 var rotasAtivas      = [];
 
-// ─── Inicialização ─────────────────────────────────────────────
+// ─── Login / Logout ────────────────────────────────────────────
 window.onload = function () {
+  // Verificar sessão
+  if (sessionStorage.getItem('supervisorAuth') === '1') {
+    document.getElementById('login-screen').classList.add('hidden');
+    iniciarPainel();
+  }
+  // Caso contrário, tela de login permanece visível
+};
+
+function fazerLogin() {
+  var senha  = document.getElementById('login-senha').value;
+  var errEl  = document.getElementById('login-err');
+  if (!senha) { mostrarAlertaEl(errEl, 'Informe a senha.', 'error'); return; }
+
+  var btn = document.querySelector('#login-screen .btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Verificando…';
+
+  callApi('verificarSenha', { senha: senha })
+    .then(function (res) {
+      btn.disabled = false;
+      btn.innerHTML = '🔓 &nbsp; Entrar';
+      if (res && res.success) {
+        sessionStorage.setItem('supervisorAuth', '1');
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('login-senha').value = '';
+        errEl.classList.add('hidden');
+        iniciarPainel();
+      } else {
+        mostrarAlertaEl(errEl, 'Senha incorreta. Tente novamente.', 'error');
+        document.getElementById('login-senha').value = '';
+        document.getElementById('login-senha').focus();
+      }
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.innerHTML = '🔓 &nbsp; Entrar';
+      mostrarAlertaEl(errEl, 'Erro de comunicação: ' + (err.message || err), 'error');
+    });
+}
+
+function fazerLogout() {
+  sessionStorage.removeItem('supervisorAuth');
+  document.getElementById('login-senha').value = '';
+  document.getElementById('login-err').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+}
+
+function iniciarPainel() {
   carregarRotasAtivas();
   carregarConfig();
-  // Auto-refresh a cada 30 segundos
   autoRefreshTimer = setInterval(function () {
     if (document.getElementById('panel-dashboard').classList.contains('active')) {
       carregarRotasAtivas();
     }
   }, 30000);
-};
+}
+
+// ─── Modal de Confirmação ──────────────────────────────────────
+var _modalCallback = null;
+
+function mostrarConfirm(titulo, msg, callback, btnLabel, btnClass) {
+  document.getElementById('modal-title').textContent = titulo || 'Confirmação';
+  document.getElementById('modal-msg').textContent   = msg;
+  var ok = document.getElementById('modal-ok');
+  ok.textContent = btnLabel || 'Confirmar';
+  ok.className   = 'btn ' + (btnClass || 'btn-danger');
+  _modalCallback = callback;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-box').classList.remove('hidden');
+}
+
+function fecharModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-box').classList.add('hidden');
+  _modalCallback = null;
+}
+
+function confirmarModal() {
+  fecharModal();
+  if (_modalCallback) _modalCallback();
+}
 
 // ─── Tabs ──────────────────────────────────────────────────────
 function selecionarTab(nome) {
@@ -631,6 +810,9 @@ function carregarRotasAtivas() {
         return;
       }
       rotasAtivas = res.rotas || [];
+      if (res.countHoje !== undefined) {
+        document.getElementById('stat-hoje').textContent = res.countHoje;
+      }
       renderDashboard(rotasAtivas);
     })
     .catch(function (err) {
@@ -762,19 +944,26 @@ function carregarDetalhes(rotaId) {
 }
 
 function forcarFinalizar(rotaId, placa) {
-  if (!confirm('Forçar finalização da rota de ' + placa + '?\nEsta ação não pode ser desfeita.')) return;
-  callApi('forcarFinalizarRota', { rotaId: rotaId })
-    .then(function (res) {
-      if (res.success) {
-        mostrarAlerta('err-dashboard', 'Rota finalizada com sucesso.', 'success');
-        carregarRotasAtivas();
-      } else {
-        mostrarAlerta('err-dashboard', 'Erro: ' + (res.error || ''), 'error');
-      }
-    })
-    .catch(function (err) {
-      mostrarAlerta('err-dashboard', 'Erro: ' + (err.message || err), 'error');
-    });
+  mostrarConfirm(
+    'Forçar finalização',
+    'Forçar o encerramento da rota do veículo ' + placa + '? Esta ação não pode ser desfeita.',
+    function () {
+      callApi('forcarFinalizarRota', { rotaId: rotaId })
+        .then(function (res) {
+          if (res.success) {
+            mostrarAlerta('err-dashboard', 'Rota finalizada com sucesso.', 'success');
+            carregarRotasAtivas();
+          } else {
+            mostrarAlerta('err-dashboard', 'Erro: ' + (res.error || ''), 'error');
+          }
+        })
+        .catch(function (err) {
+          mostrarAlerta('err-dashboard', 'Erro: ' + (err.message || err), 'error');
+        });
+    },
+    'Forçar encerramento',
+    'btn-danger'
+  );
 }
 
 // ─── Veículos ──────────────────────────────────────────────────
@@ -870,6 +1059,34 @@ function salvarConfig() {
     });
 }
 
+// ─── Alterar Senha ─────────────────────────────────────────────
+function alterarSenha() {
+  var senhaAtual   = document.getElementById('senha-atual').value;
+  var senhaNova    = document.getElementById('senha-nova').value;
+  var senhaConfirm = document.getElementById('senha-confirma').value;
+  var msgEl        = document.getElementById('msg-senha');
+
+  if (!senhaAtual)   { mostrarAlertaEl(msgEl, 'Informe a senha atual.', 'error'); return; }
+  if (!senhaNova)    { mostrarAlertaEl(msgEl, 'Informe a nova senha.', 'error'); return; }
+  if (senhaNova !== senhaConfirm) { mostrarAlertaEl(msgEl, 'As senhas não coincidem.', 'error'); return; }
+  if (senhaNova.length < 4) { mostrarAlertaEl(msgEl, 'A nova senha deve ter pelo menos 4 caracteres.', 'error'); return; }
+
+  callApi('alterarSenha', { senhaAtual: senhaAtual, novaSenha: senhaNova })
+    .then(function (res) {
+      if (res.success) {
+        mostrarAlertaEl(msgEl, '✅ Senha alterada com sucesso!', 'success');
+        document.getElementById('senha-atual').value    = '';
+        document.getElementById('senha-nova').value     = '';
+        document.getElementById('senha-confirma').value = '';
+      } else {
+        mostrarAlertaEl(msgEl, 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .catch(function (err) {
+      mostrarAlertaEl(msgEl, 'Erro de comunicação: ' + (err.message || err), 'error');
+    });
+}
+
 // ─── Relatórios ────────────────────────────────────────────────
 function gerarRelatorio() {
   var dataInicio = document.getElementById('r-inicio').value;
@@ -881,40 +1098,130 @@ function gerarRelatorio() {
   btn.disabled  = true;
   btn.innerHTML = '<span class="spinner"></span> Gerando relatório…';
 
-  callApi('gerarRelatorio', { dataInicio: dataInicio, dataFim: dataFim, placa: placa })
+  callApi('gerarRelatorioData', { dataInicio: dataInicio, dataFim: dataFim, placa: placa })
     .then(function (res) {
       btn.disabled  = false;
-      btn.innerHTML = '📊 &nbsp; Gerar e Baixar Relatório CSV';
+      btn.innerHTML = '📄 &nbsp; Gerar e Baixar Relatório PDF';
       if (!res.success) {
         mostrarAlerta('msg-relatorio', 'Erro ao gerar relatório: ' + (res.error || ''), 'error');
         return;
       }
-      baixarCSV(res.csv, 'relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.csv');
+      gerarPDF(res.rotas || [], dataInicio, dataFim, placa);
       mostrarAlerta('msg-relatorio',
         '✅ Relatório gerado com ' + (res.total || 0) + ' rota(s). Download iniciado.', 'success');
     })
     .catch(function (err) {
       btn.disabled  = false;
-      btn.innerHTML = '📊 &nbsp; Gerar e Baixar Relatório CSV';
+      btn.innerHTML = '📄 &nbsp; Gerar e Baixar Relatório PDF';
       mostrarAlerta('msg-relatorio', 'Erro: ' + (err.message || err), 'error');
     });
 }
 
-function baixarCSV(csv, filename) {
-  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  var url  = URL.createObjectURL(blob);
-  var a    = document.createElement('a');
-  a.href     = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function gerarPDF(rotas, dataInicio, dataFim, placa) {
+  var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Cabeçalho
+  doc.setFillColor(13, 71, 161);
+  doc.rect(0, 0, 297, 20, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Relatório de Rotas – Sistema de Monitoramento', 148, 13, { align: 'center' });
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  var filtroTxt = 'Gerado em: ' + new Date().toLocaleString('pt-BR');
+  if (dataInicio) filtroTxt += '   |   De: ' + dataInicio;
+  if (dataFim)    filtroTxt += '   Até: ' + dataFim;
+  if (placa)      filtroTxt += '   |   Placa: ' + placa;
+  doc.text(filtroTxt, 14, 27);
+
+  if (rotas.length === 0) {
+    doc.setFontSize(12);
+    doc.text('Nenhuma rota encontrada para os filtros selecionados.', 14, 40);
+    doc.save('relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.pdf');
+    return;
+  }
+
+  // Tabela de rotas
+  var rotaRows = rotas.map(function (r) {
+    return [
+      r.nome,
+      r.placa,
+      r.modelo,
+      formatarData(r.horaInicio),
+      formatarData(r.horaFim) || '–',
+      r.status === 'Em_Transito' ? 'Em Trânsito' : (r.status === 'Finalizado' ? 'Finalizado' : r.status),
+      (r.obsInicial || '').substring(0, 60)
+    ];
+  });
+
+  doc.autoTable({
+    startY: 32,
+    head: [['Motorista', 'Placa', 'Modelo', 'Início', 'Fim', 'Status', 'Obs. Inicial']],
+    body: rotaRows,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [21, 101, 192], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [240, 245, 255] },
+    margin: { left: 14, right: 14 }
+  });
+
+  // Detalhes de observações e GPS por rota
+  rotas.forEach(function (r) {
+    if (!r.obsViagem && (!r.gpsLog || r.gpsLog.length === 0)) return;
+    doc.addPage();
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Detalhes: ' + r.nome + ' – ' + r.placa + ' (' + r.modelo + ')', 14, 15);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+
+    var y = 22;
+    if (r.obsViagem) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ocorrências de Viagem:', 14, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+      var linhas = doc.splitTextToSize(r.obsViagem, 270);
+      doc.text(linhas, 14, y);
+      y += linhas.length * 5 + 4;
+    }
+
+    if (r.gpsLog && r.gpsLog.length > 0) {
+      var gpsRows = r.gpsLog.map(function (p) {
+        return [
+          formatarData(p.timestamp),
+          String(p.latitude),
+          String(p.longitude),
+          p.velocidade !== '' && p.velocidade !== undefined ? String(p.velocidade) + ' m/s' : '–'
+        ];
+      });
+      doc.autoTable({
+        startY: y,
+        head: [['Timestamp', 'Latitude', 'Longitude', 'Velocidade']],
+        body: gpsRows,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [240, 248, 240] },
+        margin: { left: 14, right: 14 }
+      });
+    }
+  });
+
+  doc.save('relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.pdf');
 }
 
 // ─── Utilitários DOM ───────────────────────────────────────────
 function mostrarAlerta(id, msg, tipo) {
   var el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'alert alert-' + tipo;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function mostrarAlertaEl(el, msg, tipo) {
   if (!el) return;
   el.className = 'alert alert-' + tipo;
   el.textContent = msg;
