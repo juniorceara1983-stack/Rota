@@ -757,8 +757,10 @@ function listarAbastecimentos(filtros) {
 function _ensureRotasColumns(sheet) {
   try {
     const header = sheet.getRange(1, 1, 1, Math.max(15, sheet.getLastColumn())).getValues()[0];
-    if (header[13] !== 'Km_Inicio') sheet.getRange(1, 14).setValue('Km_Inicio');
-    if (header[14] !== 'Km_Fim') sheet.getRange(1, 15).setValue('Km_Fim');
+    const idxKmInicio = 13; // coluna 14
+    const idxKmFim = 14;    // coluna 15
+    if (header[idxKmInicio] !== 'Km_Inicio') sheet.getRange(1, idxKmInicio + 1).setValue('Km_Inicio');
+    if (header[idxKmFim] !== 'Km_Fim') sheet.getRange(1, idxKmFim + 1).setValue('Km_Fim');
   } catch (_) {}
 }
 

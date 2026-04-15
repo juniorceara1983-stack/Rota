@@ -722,6 +722,7 @@ function enviarPosicaoGPS() {
 
 function enviarPosicaoAoRetomar() {
   var agora = Date.now();
+  // Evita duplicidade de envio em retornos rápidos de foco/visibilidade.
   if (agora - (estado.ultimaGpsTsMs || 0) < 5000) return;
   enviarPosicaoGPS();
 }
