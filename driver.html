@@ -498,7 +498,7 @@ document.addEventListener('visibilitychange', function () {
   if (!estado.rotaId) return;
   if (document.visibilityState === 'visible') {
     var intervaloMs = estado.intervalGPS * 60 * 1000;
-    enviarPosicaoGPS();
+    enviarPosicaoAoRetomar();
     if (estado.gpsTimer) clearInterval(estado.gpsTimer);
     estado.gpsTimer = setInterval(enviarPosicaoGPS, intervaloMs);
   } else {
@@ -509,7 +509,7 @@ document.addEventListener('visibilitychange', function () {
   }
 });
 window.addEventListener('focus', function () {
-  if (estado.rotaId) enviarPosicaoGPS();
+  if (estado.rotaId) enviarPosicaoAoRetomar();
 });
 
 // ─── Navegação ────────────────────────────────────────────────
@@ -718,6 +718,12 @@ function enviarPosicaoGPS() {
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
   );
+}
+
+function enviarPosicaoAoRetomar() {
+  var agora = Date.now();
+  if (agora - (estado.ultimaGpsTsMs || 0) < 5000) return;
+  enviarPosicaoGPS();
 }
 
 function atualizarBarraGPS(status, texto) {
