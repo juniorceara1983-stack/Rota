@@ -655,7 +655,7 @@
             🗺️ &nbsp; Abrir no Google Maps
           </a>
           <a id="rastrear-route-btn" href="#" target="_blank" class="btn btn-outline" style="width:auto;padding:10px 20px">
-            📍 &nbsp; Ver Rota Completa
+            📍 &nbsp; Ver no Mapa
           </a>
         </div>
       </div>
@@ -1056,7 +1056,7 @@ function carregarDetalhes(rotaId) {
                   '<td style="font-size:11px;color:#888">' +
                     esc(String(pt.latitude)) + ', ' + esc(String(pt.longitude)) +
                   '</td>' +
-                  '<td>' + (pt.velocidade !== '' && pt.velocidade !== undefined ? esc(String(pt.velocidade)) + ' m/s' : '–') + '</td>' +
+                  '<td>' + esc(fmtVel(pt.velocidade)) + '</td>' +
                   '<td><a href="' + mapsUrl + '" target="_blank" style="font-size:11px">📍</a></td></tr>';
         });
         html += '</table></div>';
@@ -1155,9 +1155,7 @@ function renderRastrearResult(res) {
 
     document.getElementById('rastrear-ts').textContent =
       pos.timestamp ? formatarData(pos.timestamp) : '–';
-    document.getElementById('rastrear-vel').textContent =
-      (pos.velocidade !== '' && pos.velocidade !== undefined)
-        ? pos.velocidade + ' m/s' : '–';
+    document.getElementById('rastrear-vel').textContent = fmtVel(pos.velocidade);
 
     var dms = decimalToDMS(pos.latitude, pos.longitude);
     document.getElementById('rastrear-dms').textContent     = dms;
@@ -1372,7 +1370,7 @@ function gerarPDF(rotas, dataInicio, dataFim, placa) {
             '<td>' + esc(formatarData(p.timestamp)) + '</td>' +
             '<td style="font-family:monospace">' + esc(dms) + '</td>' +
             '<td style="font-size:11px;color:#888">' + esc(String(p.latitude)) + ', ' + esc(String(p.longitude)) + '</td>' +
-            '<td>' + (p.velocidade !== '' && p.velocidade !== undefined ? esc(String(p.velocidade)) + ' m/s' : '–') + '</td>' +
+            '<td>' + esc(fmtVel(p.velocidade)) + '</td>' +
             '</tr>';
         });
         rotasHtml += '</tbody></table>';
@@ -1414,7 +1412,7 @@ function gerarPDF(rotas, dataInicio, dataFim, placa) {
   }
   win.document.write(html);
   win.document.close();
-  setTimeout(function () { win.print(); }, 600);
+  win.onload = function () { win.print(); };
 }
 
 // ─── Utilitários DOM ───────────────────────────────────────────
@@ -1462,6 +1460,10 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function fmtVel(v) {
+  return (v !== '' && v !== undefined && v !== null) ? String(v) + ' m/s' : '–';
 }
 </script>
 </body>
