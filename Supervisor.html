@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel do Supervisor – Sistema de Rotas</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:       #1565C0;
+      --primary-dark:  #0D47A1;
+      --primary-light: #E3F2FD;
+      --success:       #2E7D32;
+      --success-light: #E8F5E9;
+      --danger:        #C62828;
+      --danger-light:  #FFEBEE;
+      --warning:       #F57F17;
+      --warning-light: #FFF8E1;
+      --bg:            #ECEFF1;
+      --card:          #FFFFFF;
+      --text:          #212121;
+      --muted:         #757575;
+      --border:        #CFD8DC;
+      --shadow:        0 2px 8px rgba(0,0,0,0.10);
+      --radius:        10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--primary-dark);
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-icon  { font-size: 26px; }
+    .header-title { font-size: 18px; font-weight: 700; }
+    .header-sub   { font-size: 12px; opacity: 0.8; margin-top: 1px; }
+    .header-badge {
+      background: rgba(255,255,255,.18);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      background: var(--primary);
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex-shrink: 0;
+      padding: 13px 20px;
+      color: rgba(255,255,255,.72);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .tab:hover { color: #fff; }
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #fff;
+    }
+
+    /* ── Content ── */
+    .tab-panel { display: none; padding: 20px 16px; max-width: 1100px; margin: 0 auto; }
+    .tab-panel.active { display: block; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background .15s, transform .1s, opacity .15s;
+      text-decoration: none;
+    }
+    .btn-block { display: flex; width: 100%; justify-content: center; padding: 13px; font-size: 15px; }
+    .btn:active    { transform: scale(0.98); }
+    .btn:disabled  { opacity: .55; cursor: not-allowed; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled)  { background: var(--primary-dark); }
+    .btn-success   { background: var(--success); color: #fff; }
+    .btn-success:hover:not(:disabled)  { background: #1B5E20; }
+    .btn-danger    { background: var(--danger);  color: #fff; }
+    .btn-danger:hover:not(:disabled)   { background: #8E0000; }
+    .btn-outline   { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); }
+    .btn-outline:hover:not(:disabled)  { background: var(--primary-light); }
+    .btn-sm        { padding: 6px 12px; font-size: 12px; }
+
+    /* ── Form ── */
+    .form-row  { display: flex; gap: 12px; flex-wrap: wrap; }
+    .form-group { flex: 1; min-width: 180px; margin-bottom: 14px; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 5px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+      transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(21,101,192,.12);
+    }
+    select.form-control { cursor: pointer; }
+
+    /* ── Table ── */
+    .table-wrap  { overflow-x: auto; }
+    table        { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead th     {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      background: #F5F7FA;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr     { border-bottom: 1px solid #F0F0F0; transition: background .1s; }
+    tbody tr:hover { background: #FAFBFC; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody td     { padding: 11px 12px; vertical-align: top; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+    .badge-em-transito { background: var(--warning-light); color: var(--warning); }
+    .badge-finalizado  { background: var(--success-light); color: var(--success); }
+    .badge-disponivel  { background: var(--primary-light); color: var(--primary); }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 40px; margin-bottom: 10px; }
+    .empty-text { font-size: 15px; }
+
+    /* ── Alert ── */
+    .alert {
+      padding: 11px 14px;
+      border-radius: 7px;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+    .alert-error   { background: var(--danger-light); color: var(--danger);   border-left: 4px solid var(--danger); }
+    .alert-success { background: var(--success-light); color: var(--success); border-left: 4px solid var(--success); }
+    .alert-info    { background: var(--primary-light); color: var(--primary); border-left: 4px solid var(--primary); }
+
+    /* ── Refresh indicator ── */
+    .refresh-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin .75s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .spinner-dark {
+      border-color: rgba(21,101,192,.2);
+      border-top-color: var(--primary);
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Obs text ── */
+    .obs-cell {
+      max-width: 260px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+    }
+    .obs-truncate {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    /* ── Detail panel ── */
+    .detail-panel {
+      background: #F5F7FA;
+      border-radius: 7px;
+      padding: 14px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    .detail-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .gps-table     { width: 100%; font-size: 12px; }
+    .gps-table td  { padding: 4px 8px; border-bottom: 1px solid #E8E8E8; }
+    .gps-table tr:last-child td { border-bottom: none; }
+
+    /* ── Config section ── */
+    .config-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid #F0F0F0;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .config-item:last-child { border-bottom: none; }
+    .config-label  { font-size: 15px; font-weight: 500; }
+    .config-desc   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 12px 18px;
+      box-shadow: var(--shadow);
+      flex: 1;
+      min-width: 120px;
+      text-align: center;
+    }
+    .stat-num   { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 600px) {
+      .header-badge { display: none; }
+      .tab { padding: 12px 14px; font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+     ══════════════════════════════════════════════════════════ -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🗂️</div>
+    <div>
+      <div class="header-title">Sistema de Rotas</div>
+      <div class="header-sub">Painel do Supervisor</div>
+    </div>
+  </div>
+  <div class="header-badge" id="header-ativas">– em rota</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TABS
+     ══════════════════════════════════════════════════════════ -->
+<div class="tabs" id="tabs">
+  <div class="tab active" onclick="selecionarTab('dashboard')">📊 Dashboard</div>
+  <div class="tab"        onclick="selecionarTab('veiculos')">🚗 Veículos</div>
+  <div class="tab"        onclick="selecionarTab('config')">⚙️ Configurações</div>
+  <div class="tab"        onclick="selecionarTab('relatorios')">📄 Relatórios</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: DASHBOARD
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-dashboard" class="tab-panel active">
+
+  <div class="stats-bar">
+    <div class="stat-chip">
+      <div class="stat-num" id="stat-ativas">–</div>
+      <div class="stat-label">Em Rota</div>
+    </div>
+    <div class="stat-chip">
+      <div class="stat-num" id="stat-hoje">–</div>
+      <div class="stat-label">Hoje</div>
+    </div>
+  </div>
+
+  <div id="err-dashboard" class="alert alert-error hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🚛 Veículos em Rota</div>
+        <div class="card-subtitle" id="ultima-atualizacao">Carregando…</div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="carregarRotasAtivas()">
+        🔄 Atualizar
+      </button>
+    </div>
+
+    <div id="dashboard-loading" style="text-align:center;padding:30px;color:var(--muted)">
+      <span class="spinner spinner-dark"></span> Carregando rotas ativas…
+    </div>
+
+    <div id="dashboard-content" class="hidden">
+      <div id="dashboard-empty" class="empty hidden">
+        <div class="empty-icon">🟢</div>
+        <div class="empty-text">Nenhum veículo em rota no momento.</div>
+      </div>
+      <div class="table-wrap">
+        <table id="tabela-rotas">
+          <thead>
+            <tr>
+              <th>Motorista</th>
+              <th>Placa</th>
+              <th>Modelo</th>
+              <th>Início</th>
+              <th>Obs. Inicial</th>
+              <th>Última Ocorrência</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-rotas"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: VEÍCULOS
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-veiculos" class="tab-panel">
+
+  <div id="msg-veiculos" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">🔓 Liberar Veículo</div>
+        <div class="card-subtitle">Registre ou reative um veículo na frota</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="v-placa">Placa *</label>
+        <input id="v-placa" type="text" class="form-control"
+               placeholder="AAA-0000" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="v-modelo">Modelo *</label>
+        <input id="v-modelo" type="text" class="form-control"
+               placeholder="Ex: Fiat Uno">
+      </div>
+    </div>
+    <button class="btn btn-success btn-block" onclick="liberarVeiculo()">
+      🔓 &nbsp; Liberar Veículo
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Frota Cadastrada</div>
+      <button class="btn btn-outline btn-sm" onclick="carregarVeiculos()">🔄 Atualizar</button>
+    </div>
+    <div id="veiculos-loading" style="text-align:center;padding:20px;color:var(--muted)">
+      <span class="spinner spinner-dark"></span> Carregando…
+    </div>
+    <div id="veiculos-content" class="hidden">
+      <div id="veiculos-empty" class="empty hidden">
+        <div class="empty-icon">🚗</div>
+        <div class="empty-text">Nenhum veículo cadastrado ainda.</div>
+      </div>
+      <div class="table-wrap">
+        <table id="tabela-veiculos">
+          <thead>
+            <tr><th>Placa</th><th>Modelo</th><th>Status</th></tr>
+          </thead>
+          <tbody id="tbody-veiculos"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: CONFIGURAÇÕES
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-config" class="tab-panel">
+
+  <div id="msg-config" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⚙️ Configurações do Sistema</div>
+    </div>
+
+    <div class="config-item">
+      <div>
+        <div class="config-label">Intervalo de Registro GPS</div>
+        <div class="config-desc">Com que frequência o sistema registra a posição do motorista durante a rota</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <select id="cfg-intervalo" class="form-control" style="width:auto">
+          <option value="1">A cada 1 minuto</option>
+          <option value="2">A cada 2 minutos</option>
+          <option value="5">A cada 5 minutos</option>
+          <option value="10" selected>A cada 10 minutos</option>
+          <option value="15">A cada 15 minutos</option>
+          <option value="20">A cada 20 minutos</option>
+          <option value="30">A cada 30 minutos</option>
+        </select>
+        <button class="btn btn-primary" onclick="salvarConfig()">Salvar</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">ℹ️ Instruções de Acesso</div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;color:var(--muted)">
+      <strong>Painel do Motorista:</strong> Compartilhe o link do Web App e instrua o motorista a
+      acessar normalmente (sem parâmetros, ou com <code>?page=driver</code>).<br><br>
+      <strong>Painel do Supervisor:</strong> Este painel deve ser acessado com o parâmetro
+      <code>?page=supervisor</code> ao final da URL do Web App.<br><br>
+      <strong>Geolocalização:</strong> O motorista deve autorizar o acesso à localização no
+      navegador para que o rastreamento funcione corretamente.
+    </p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: RELATÓRIOS
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-relatorios" class="tab-panel">
+
+  <div id="msg-relatorio" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">📄 Gerar Relatório de Rotas</div>
+        <div class="card-subtitle">Filtre por período e/ou placa e baixe o CSV</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="r-inicio">Data Início</label>
+        <input id="r-inicio" type="date" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="r-fim">Data Fim</label>
+        <input id="r-fim" type="date" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="r-placa">Placa (opcional)</label>
+        <input id="r-placa" type="text" class="form-control"
+               placeholder="Deixe em branco para todas"
+               style="text-transform:uppercase">
+      </div>
+    </div>
+
+    <button id="btn-gerar" class="btn btn-primary btn-block" onclick="gerarRelatorio()">
+      📊 &nbsp; Gerar e Baixar Relatório CSV
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Sobre o Relatório</div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;color:var(--muted)">
+      O relatório CSV inclui:<br>
+      • <strong>Dados da Rota:</strong> Nome, placa, modelo, horários de início e fim, status, observações.<br>
+      • <strong>Log GPS:</strong> Todos os pontos registrados com timestamp, latitude, longitude e velocidade.<br><br>
+      O arquivo é gerado em UTF-8 com BOM para compatibilidade com Microsoft Excel e Google Sheets.
+    </p>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ══════════════════════════════════════════════════════════ -->
+<script>
+var autoRefreshTimer = null;
+var rotasAtivas      = [];
+
+// ─── Inicialização ─────────────────────────────────────────────
+window.onload = function () {
+  carregarRotasAtivas();
+  carregarConfig();
+  // Auto-refresh a cada 30 segundos
+  autoRefreshTimer = setInterval(function () {
+    if (document.getElementById('panel-dashboard').classList.contains('active')) {
+      carregarRotasAtivas();
+    }
+  }, 30000);
+};
+
+// ─── Tabs ──────────────────────────────────────────────────────
+function selecionarTab(nome) {
+  document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+  var tabs = document.getElementById('tabs').querySelectorAll('.tab');
+  var ordem = ['dashboard', 'veiculos', 'config', 'relatorios'];
+  var idx   = ordem.indexOf(nome);
+  if (idx >= 0) tabs[idx].classList.add('active');
+  document.getElementById('panel-' + nome).classList.add('active');
+
+  if (nome === 'veiculos')   carregarVeiculos();
+  if (nome === 'dashboard')  carregarRotasAtivas();
+}
+
+// ─── Dashboard ─────────────────────────────────────────────────
+function carregarRotasAtivas() {
+  esconderEl('dashboard-content');
+  mostrarEl('dashboard-loading');
+  esconderAlerta('err-dashboard');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      esconderEl('dashboard-loading');
+      mostrarEl('dashboard-content');
+      if (!res.success) {
+        mostrarAlerta('err-dashboard', 'Erro ao carregar rotas: ' + (res.error || ''), 'error');
+        return;
+      }
+      rotasAtivas = res.rotas || [];
+      renderDashboard(rotasAtivas);
+    })
+    .withFailureHandler(function (err) {
+      esconderEl('dashboard-loading');
+      mostrarEl('dashboard-content');
+      mostrarAlerta('err-dashboard', 'Erro de comunicação: ' + (err.message || err), 'error');
+    })
+    .getRotasAtivas();
+}
+
+function renderDashboard(rotas) {
+  var tbody   = document.getElementById('tbody-rotas');
+  var emptyEl = document.getElementById('dashboard-empty');
+  var tableEl = document.getElementById('tabela-rotas');
+
+  document.getElementById('stat-ativas').textContent = rotas.length;
+  document.getElementById('header-ativas').textContent =
+    rotas.length + (rotas.length === 1 ? ' em rota' : ' em rota');
+  document.getElementById('ultima-atualizacao').textContent =
+    'Última atualização: ' + new Date().toLocaleTimeString('pt-BR');
+
+  tbody.innerHTML = '';
+
+  if (rotas.length === 0) {
+    emptyEl.classList.remove('hidden');
+    tableEl.classList.add('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+  tableEl.classList.remove('hidden');
+
+  rotas.forEach(function (r) {
+    var ultimaObs = '';
+    if (r.obsViagem) {
+      var linhas = String(r.obsViagem).split('\n');
+      ultimaObs  = linhas[linhas.length - 1];
+    }
+
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong>' + esc(r.nome) + '</strong></td>' +
+      '<td><code>' + esc(r.placa) + '</code></td>' +
+      '<td>' + esc(r.modelo) + '</td>' +
+      '<td style="white-space:nowrap">' + formatarData(r.horaInicio) + '</td>' +
+      '<td class="obs-cell"><span class="obs-truncate">' + esc(r.obsInicial || '–') + '</span></td>' +
+      '<td class="obs-cell"><span class="obs-truncate">' + esc(ultimaObs || '–') + '</span></td>' +
+      '<td>' +
+        '<button class="btn btn-outline btn-sm" style="margin-bottom:4px" ' +
+          'onclick="toggleDetalhes(\'' + esc(r.id) + '\')">🔍 Detalhes</button><br>' +
+        '<button class="btn btn-danger btn-sm" ' +
+          'onclick="forcarFinalizar(\'' + esc(r.id) + '\', \'' + esc(r.placa) + '\')">⏹ Forçar Fim</button>' +
+      '</td>';
+
+    // Linha de detalhes (expansível)
+    var trDetalhe = document.createElement('tr');
+    trDetalhe.id = 'detalhe-' + r.id;
+    trDetalhe.classList.add('hidden');
+    trDetalhe.innerHTML =
+      '<td colspan="7"><div id="detalhe-inner-' + r.id + '" class="detail-panel">' +
+        '<span class="spinner spinner-dark"></span> Carregando detalhes…' +
+      '</div></td>';
+
+    tbody.appendChild(tr);
+    tbody.appendChild(trDetalhe);
+  });
+}
+
+function toggleDetalhes(rotaId) {
+  var row = document.getElementById('detalhe-' + rotaId);
+  if (!row) return;
+  if (row.classList.contains('hidden')) {
+    row.classList.remove('hidden');
+    carregarDetalhes(rotaId);
+  } else {
+    row.classList.add('hidden');
+  }
+}
+
+function carregarDetalhes(rotaId) {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      var inner = document.getElementById('detalhe-inner-' + rotaId);
+      if (!inner) return;
+      if (!res.success) {
+        inner.innerHTML = '<span style="color:var(--danger)">Erro: ' + esc(res.error || '') + '</span>';
+        return;
+      }
+      var r   = res.rota;
+      var gps = res.gpsLog || [];
+      var html = '<div class="detail-title">Observações de Viagem</div>';
+      html += '<div style="white-space:pre-wrap;font-size:13px;margin-bottom:12px">' +
+              esc(r.obsViagem || 'Nenhuma observação registrada.') + '</div>';
+
+      if (r.latInicio && r.longInicio) {
+        html += '<a href="https://www.google.com/maps?q=' + r.latInicio + ',' + r.longInicio +
+                '" target="_blank" class="btn btn-outline btn-sm" style="margin-bottom:10px">' +
+                '📍 Ver ponto de início no mapa</a>';
+      }
+
+      if (gps.length > 0) {
+        html += '<div class="detail-title" style="margin-top:10px">Log GPS (' + gps.length + ' pontos)</div>';
+        html += '<div style="overflow-x:auto"><table class="gps-table">' +
+                '<tr><td><strong>Timestamp</strong></td><td><strong>Latitude</strong></td>' +
+                '<td><strong>Longitude</strong></td><td><strong>Velocidade</strong></td></tr>';
+        gps.forEach(function (pt) {
+          html += '<tr><td>' + esc(formatarData(pt.timestamp)) + '</td>' +
+                  '<td>' + esc(String(pt.latitude)) + '</td>' +
+                  '<td>' + esc(String(pt.longitude)) + '</td>' +
+                  '<td>' + (pt.velocidade !== '' ? esc(String(pt.velocidade)) + ' m/s' : '–') + '</td></tr>';
+        });
+        html += '</table></div>';
+        // Link de rota no Maps
+        if (gps.length >= 2) {
+          var origem  = gps[0].latitude + ',' + gps[0].longitude;
+          var destino = gps[gps.length - 1].latitude + ',' + gps[gps.length - 1].longitude;
+          html += '<a href="https://www.google.com/maps/dir/' + origem + '/' + destino +
+                  '" target="_blank" class="btn btn-outline btn-sm" style="margin-top:8px">' +
+                  '🗺️ Ver rota no mapa</a>';
+        }
+      } else {
+        html += '<div style="color:var(--muted);font-size:13px">Nenhum ponto GPS registrado ainda.</div>';
+      }
+
+      inner.innerHTML = html;
+    })
+    .withFailureHandler(function (err) {
+      var inner = document.getElementById('detalhe-inner-' + rotaId);
+      if (inner) inner.innerHTML = '<span style="color:var(--danger)">Erro: ' + esc(err.message || err) + '</span>';
+    })
+    .getDetalhesRota(rotaId);
+}
+
+function forcarFinalizar(rotaId, placa) {
+  if (!confirm('Forçar finalização da rota de ' + placa + '?\nEsta ação não pode ser desfeita.')) return;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res.success) {
+        mostrarAlerta('err-dashboard', 'Rota finalizada com sucesso.', 'success');
+        carregarRotasAtivas();
+      } else {
+        mostrarAlerta('err-dashboard', 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .withFailureHandler(function (err) {
+      mostrarAlerta('err-dashboard', 'Erro: ' + (err.message || err), 'error');
+    })
+    .forcarFinalizarRota(rotaId);
+}
+
+// ─── Veículos ──────────────────────────────────────────────────
+function liberarVeiculo() {
+  var placa  = document.getElementById('v-placa').value.trim().toUpperCase();
+  var modelo = document.getElementById('v-modelo').value.trim();
+  var msgEl  = document.getElementById('msg-veiculos');
+
+  if (!placa)  { mostrarAlerta('msg-veiculos', 'Informe a placa.', 'error'); return; }
+  if (!modelo) { mostrarAlerta('msg-veiculos', 'Informe o modelo.', 'error'); return; }
+  esconderAlerta('msg-veiculos');
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res.success) {
+        mostrarAlerta('msg-veiculos', '✅ ' + res.message, 'success');
+        document.getElementById('v-placa').value  = '';
+        document.getElementById('v-modelo').value = '';
+        carregarVeiculos();
+      } else {
+        mostrarAlerta('msg-veiculos', 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .withFailureHandler(function (err) {
+      mostrarAlerta('msg-veiculos', 'Erro: ' + (err.message || err), 'error');
+    })
+    .liberarVeiculo({ placa: placa, modelo: modelo });
+}
+
+function carregarVeiculos() {
+  mostrarEl('veiculos-loading');
+  esconderEl('veiculos-content');
+  google.script.run
+    .withSuccessHandler(function (res) {
+      esconderEl('veiculos-loading');
+      mostrarEl('veiculos-content');
+      if (!res.success) return;
+      var veiculos = res.veiculos || [];
+      var tbody    = document.getElementById('tbody-veiculos');
+      var emptyEl  = document.getElementById('veiculos-empty');
+      var tableEl  = document.getElementById('tabela-veiculos');
+      tbody.innerHTML = '';
+
+      if (veiculos.length === 0) {
+        emptyEl.classList.remove('hidden');
+        tableEl.classList.add('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      tableEl.classList.remove('hidden');
+
+      veiculos.forEach(function (v) {
+        var badgeClass = v.status === 'Em_Transito' ? 'badge-em-transito' :
+                         v.status === 'Finalizado'   ? 'badge-finalizado'  : 'badge-disponivel';
+        var statusLabel = v.status === 'Em_Transito' ? 'Em Trânsito' :
+                          v.status === 'Finalizado'   ? 'Finalizado'  : 'Disponível';
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><code>' + esc(v.placa) + '</code></td>' +
+          '<td>' + esc(v.modelo) + '</td>' +
+          '<td><span class="badge ' + badgeClass + '">' + statusLabel + '</span></td>';
+        tbody.appendChild(tr);
+      });
+    })
+    .withFailureHandler(function () {
+      esconderEl('veiculos-loading');
+      mostrarEl('veiculos-content');
+    })
+    .getVeiculos();
+}
+
+// ─── Configurações ─────────────────────────────────────────────
+function carregarConfig() {
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res && res.success && res.config && res.config.Intervalo_GPS) {
+        var sel = document.getElementById('cfg-intervalo');
+        sel.value = String(res.config.Intervalo_GPS);
+      }
+    })
+    .getConfig();
+}
+
+function salvarConfig() {
+  var intervalo = document.getElementById('cfg-intervalo').value;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res.success) {
+        mostrarAlerta('msg-config', '✅ Configuração salva! Os motoristas terão o novo intervalo na próxima rota.', 'success');
+      } else {
+        mostrarAlerta('msg-config', 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .withFailureHandler(function (err) {
+      mostrarAlerta('msg-config', 'Erro: ' + (err.message || err), 'error');
+    })
+    .setConfig({ intervaloGPS: intervalo });
+}
+
+// ─── Relatórios ────────────────────────────────────────────────
+function gerarRelatorio() {
+  var dataInicio = document.getElementById('r-inicio').value;
+  var dataFim    = document.getElementById('r-fim').value;
+  var placa      = document.getElementById('r-placa').value.trim().toUpperCase();
+  var btn        = document.getElementById('btn-gerar');
+  var msgEl      = document.getElementById('msg-relatorio');
+
+  esconderAlerta('msg-relatorio');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Gerando relatório…';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      btn.disabled  = false;
+      btn.innerHTML = '📊 &nbsp; Gerar e Baixar Relatório CSV';
+      if (!res.success) {
+        mostrarAlerta('msg-relatorio', 'Erro ao gerar relatório: ' + (res.error || ''), 'error');
+        return;
+      }
+      baixarCSV(res.csv, 'relatorio_rotas_' + new Date().toISOString().slice(0, 10) + '.csv');
+      mostrarAlerta('msg-relatorio',
+        '✅ Relatório gerado com ' + (res.total || 0) + ' rota(s). Download iniciado.', 'success');
+    })
+    .withFailureHandler(function (err) {
+      btn.disabled  = false;
+      btn.innerHTML = '📊 &nbsp; Gerar e Baixar Relatório CSV';
+      mostrarAlerta('msg-relatorio', 'Erro: ' + (err.message || err), 'error');
+    })
+    .gerarRelatorio({ dataInicio: dataInicio, dataFim: dataFim, placa: placa });
+}
+
+function baixarCSV(csv, filename) {
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Utilitários DOM ───────────────────────────────────────────
+function mostrarAlerta(id, msg, tipo) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'alert alert-' + tipo;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function esconderAlerta(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+
+function mostrarEl(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+}
+
+function esconderEl(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+
+function formatarData(iso) {
+  if (!iso) return '–';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return String(iso); }
+}
+
+function esc(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
