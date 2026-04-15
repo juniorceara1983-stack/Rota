@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Painel do Motorista – Sistema de Rotas</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1565C0">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -209,9 +212,48 @@
     .success-time  { font-size: 22px; font-weight: 700; color: var(--primary); text-align: center; margin-bottom: 20px; }
 
     .hidden { display: none !important; }
+
+    /* ── Modal de Confirmação ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 100;
+    }
+    .modal-box {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 22px 20px;
+      width: 90%; max-width: 340px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.22);
+      z-index: 101;
+    }
+    .modal-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .modal-msg   { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 18px; }
+    .modal-btns  { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-btns .btn {
+      display: inline-flex; width: auto;
+      padding: 10px 20px; font-size: 14px; font-weight: 700;
+      border-radius: 7px;
+    }
   </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL DE CONFIRMAÇÃO
+     ══════════════════════════════════════════════════════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" onclick="fecharModal()"></div>
+<div id="modal-box" class="modal-box hidden">
+  <div id="modal-title" class="modal-title"></div>
+  <div id="modal-msg"   class="modal-msg"></div>
+  <div class="modal-btns">
+    <button class="btn" style="background:transparent;border:2px solid var(--primary);color:var(--primary)" onclick="fecharModal()">Cancelar</button>
+    <button id="modal-ok" class="btn" style="background:var(--danger);color:#fff" onclick="confirmarModal()">Confirmar</button>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      TELA 1 – REGISTRO
@@ -468,47 +510,61 @@ function iniciarRota() {
   esconderErro(errEl);
 
   var btn = document.getElementById('btn-iniciar');
-  setBtnLoading(btn, true, '<span class="spinner"></span> Iniciando…');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Verificando veículo…');
 
-  var ts = new Date().toISOString();
+  // Validar veículo antes de iniciar
+  callApi('validarVeiculo', { placa: placa, modelo: modelo })
+    .then(function (valRes) {
+      if (!valRes.success) {
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        mostrarErro(errEl, valRes.error || 'Veículo não autorizado.');
+        return;
+      }
+      setBtnLoading(btn, true, '<span class="spinner"></span> Iniciando…');
+      var ts = new Date().toISOString();
 
-  function _chamar(lat, lng) {
-    callApi('iniciarRota', {
-      nome: nome, placa: placa, modelo: modelo,
-      obsInicial: obs, timestamp: ts,
-      latitude: lat, longitude: lng
+      function _chamar(lat, lng) {
+        callApi('iniciarRota', {
+          nome: nome, placa: placa, modelo: modelo,
+          obsInicial: obs, timestamp: ts,
+          latitude: lat, longitude: lng
+        })
+          .then(function (res) {
+            setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+            if (res.success) {
+              estado.rotaId      = res.id;
+              estado.nome        = nome;
+              estado.placa       = placa;
+              estado.modelo      = modelo;
+              estado.obsInicial  = obs;
+              estado.horaInicio  = ts;
+              estado.observacoes = [];
+              salvarEstado();
+              mostrarTelaRota();
+            } else {
+              mostrarErro(errEl, 'Erro ao iniciar rota: ' + (res.error || 'desconhecido'));
+            }
+          })
+          .catch(function (err) {
+            setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+            mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+          });
+      }
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
+          function ()    { _chamar('', ''); },
+          { timeout: 10000, enableHighAccuracy: true }
+        );
+      } else {
+        _chamar('', '');
+      }
     })
-      .then(function (res) {
-        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
-        if (res.success) {
-          estado.rotaId      = res.id;
-          estado.nome        = nome;
-          estado.placa       = placa;
-          estado.modelo      = modelo;
-          estado.obsInicial  = obs;
-          estado.horaInicio  = ts;
-          estado.observacoes = [];
-          salvarEstado();
-          mostrarTelaRota();
-        } else {
-          mostrarErro(errEl, 'Erro ao iniciar rota: ' + (res.error || 'desconhecido'));
-        }
-      })
-      .catch(function (err) {
-        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
-        mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
-      });
-  }
-
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
-      function ()    { _chamar('', ''); },
-      { timeout: 10000, enableHighAccuracy: true }
-    );
-  } else {
-    _chamar('', '');
-  }
+    .catch(function (err) {
+      setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    });
 }
 
 // ─── GPS Tracking ─────────────────────────────────────────────
@@ -564,10 +620,10 @@ function atualizarBarraGPS(status, texto) {
 function adicionarObservacao() {
   var textarea = document.getElementById('nova-obs');
   var obs      = textarea.value.trim();
-  if (!obs) { alert('Digite uma observação antes de adicionar.'); return; }
+  var errEl    = document.getElementById('err-rota');
+  if (!obs) { mostrarErro(errEl, 'Digite uma observação antes de adicionar.'); return; }
 
   var btn   = document.getElementById('btn-add-obs');
-  var errEl = document.getElementById('err-rota');
   setBtnLoading(btn, true, '<span class="spinner spinner-dark"></span> Enviando…');
 
   var ts = new Date().toISOString();
@@ -609,10 +665,38 @@ function renderObservacoes() {
   });
 }
 
+// ─── Modal de Confirmação ─────────────────────────────────────
+var _modalCallback = null;
+
+function mostrarConfirm(titulo, msg, callback, btnLabel) {
+  document.getElementById('modal-title').textContent = titulo || 'Confirmação';
+  document.getElementById('modal-msg').textContent   = msg;
+  var ok = document.getElementById('modal-ok');
+  ok.textContent = btnLabel || 'Confirmar';
+  _modalCallback = callback;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-box').classList.remove('hidden');
+}
+
+function fecharModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-box').classList.add('hidden');
+  _modalCallback = null;
+}
+
+function confirmarModal() {
+  fecharModal();
+  if (_modalCallback) _modalCallback();
+}
+
 // ─── Finalizar Rota ───────────────────────────────────────────
 function confirmarFinalizar() {
-  if (!confirm('Deseja realmente finalizar esta rota?')) return;
-  _finalizarRota();
+  mostrarConfirm(
+    'Finalizar Rota',
+    'Deseja realmente finalizar esta rota?',
+    _finalizarRota,
+    '🔴 Finalizar'
+  );
 }
 
 function _finalizarRota() {

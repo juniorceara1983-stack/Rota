@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="28" fill="#0D47A1"/>
+  <!-- Truck body -->
+  <rect x="20" y="90" width="110" height="54" rx="6" fill="#fff"/>
+  <!-- Cab -->
+  <rect x="110" y="100" width="52" height="44" rx="6" fill="#fff"/>
+  <!-- Windshield -->
+  <rect x="118" y="106" width="36" height="22" rx="4" fill="#90CAF9"/>
+  <!-- Wheels -->
+  <circle cx="50"  cy="148" r="16" fill="#1565C0"/>
+  <circle cx="50"  cy="148" r="8"  fill="#fff"/>
+  <circle cx="132" cy="148" r="16" fill="#1565C0"/>
+  <circle cx="132" cy="148" r="8"  fill="#fff"/>
+  <!-- Route line + pin -->
+  <circle cx="152" cy="44"  r="20" fill="#FFC107"/>
+  <text x="152" y="52" font-size="24" text-anchor="middle" fill="#0D47A1">📍</text>
+</svg>

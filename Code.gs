@@ -51,6 +51,7 @@ function getOrCreateSheet(name) {
       case SHEET_CONFIG:
         sheet.appendRow(['Chave', 'Valor']);
         sheet.appendRow(['Intervalo_GPS', '10']);
+        sheet.appendRow(['Senha_Supervisor', '123456']);
         sheet.setFrozenRows(1);
         break;
     }
@@ -180,7 +181,11 @@ function getRotasAtivas() {
   try {
     const rows  = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
     const rotas = [];
+    const hoje  = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    let   countHoje = 0;
     for (let i = 1; i < rows.length; i++) {
+      const horaInicio = String(rows[i][5]);
+      if (horaInicio.startsWith(hoje)) countHoje++;
       if (rows[i][8] === 'Em_Transito') {
         rotas.push({
           id:         rows[i][0],
@@ -195,7 +200,7 @@ function getRotasAtivas() {
         });
       }
     }
-    return { success: true, rotas: rotas };
+    return { success: true, rotas: rotas, countHoje: countHoje };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -395,6 +400,21 @@ function doPost(e) {
       case 'gerarRelatorio':
         result = gerarRelatorio(payload);
         break;
+      case 'gerarRelatorioData':
+        result = gerarRelatorioData(payload);
+        break;
+      case 'validarVeiculo':
+        result = validarVeiculo(payload);
+        break;
+      case 'verificarSenha':
+        result = verificarSenha(payload.senha);
+        break;
+      case 'alterarSenha':
+        result = alterarSenha(payload);
+        break;
+      case 'buscarPorPlaca':
+        result = buscarPorPlaca(payload.placa);
+        break;
       default:
         result = { success: false, error: 'Ação desconhecida: ' + action };
     }
@@ -409,6 +429,120 @@ function doPost(e) {
   }
 }
 
+// ── Validar Veículo ──────────────────────────────────────────
+function validarVeiculo(data) {
+  try {
+    const placa  = (data.placa  || '').toUpperCase().trim();
+    const modelo = (data.modelo || '').trim().toLowerCase();
+    const sheet  = getOrCreateSheet(SHEET_VEICULOS);
+    const rows   = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === placa) {
+        if (rows[i][1].trim().toLowerCase() !== modelo) {
+          return { success: false, error: 'Modelo incorreto. Modelo cadastrado: ' + rows[i][1] };
+        }
+        if (rows[i][2] === 'Em_Transito') {
+          return { success: false, error: 'Veículo já está em uma rota ativa.' };
+        }
+        return { success: true };
+      }
+    }
+    return { success: false, error: 'Veículo não encontrado. Solicite ao supervisor que libere o veículo.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Verificar Senha do Supervisor ────────────────────────────
+function verificarSenha(senha) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_CONFIG);
+    const rows  = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === 'Senha_Supervisor') {
+        return { success: String(rows[i][1]) === String(senha) };
+      }
+    }
+    // Senha não cadastrada: inicializa com padrão e aceita "123456"
+    sheet.appendRow(['Senha_Supervisor', '123456']);
+    return { success: senha === '123456' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Alterar Senha do Supervisor ──────────────────────────────
+function alterarSenha(data) {
+  try {
+    const check = verificarSenha(data.senhaAtual);
+    if (!check.success) return { success: false, error: 'Senha atual incorreta.' };
+    const sheet = getOrCreateSheet(SHEET_CONFIG);
+    const rows  = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === 'Senha_Supervisor') {
+        sheet.getRange(i + 1, 2).setValue(String(data.novaSenha));
+        return { success: true };
+      }
+    }
+    sheet.appendRow(['Senha_Supervisor', String(data.novaSenha)]);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Gerar Dados do Relatório (estruturado para PDF) ──────────
+function gerarRelatorioData(filtros) {
+  try {
+    const rotaRows = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
+    const gpsRows  = getOrCreateSheet(SHEET_GPS).getDataRange().getValues();
+
+    const gpsIndex = {};
+    for (let i = 1; i < gpsRows.length; i++) {
+      const rid = gpsRows[i][0];
+      if (!gpsIndex[rid]) gpsIndex[rid] = [];
+      gpsIndex[rid].push({
+        timestamp:  String(gpsRows[i][1]),
+        latitude:   gpsRows[i][2],
+        longitude:  gpsRows[i][3],
+        velocidade: gpsRows[i][4]
+      });
+    }
+
+    const dataInicio = filtros.dataInicio ? filtros.dataInicio + 'T00:00:00' : null;
+    const dataFim    = filtros.dataFim    ? filtros.dataFim    + 'T23:59:59' : null;
+    const placa      = filtros.placa      ? filtros.placa.toUpperCase()       : null;
+
+    const rotas = [];
+    for (let i = 1; i < rotaRows.length; i++) {
+      const row = rotaRows[i];
+      if (placa      && row[2] !== placa)            continue;
+      if (dataInicio && String(row[5]) < dataInicio) continue;
+      if (dataFim    && String(row[5]) > dataFim)    continue;
+      const rid = String(row[0]);
+      rotas.push({
+        id:         rid,
+        nome:       String(row[1]),
+        placa:      String(row[2]),
+        modelo:     String(row[3]),
+        obsInicial: String(row[4]),
+        horaInicio: String(row[5]),
+        latInicio:  String(row[6]),
+        longInicio: String(row[7]),
+        status:     String(row[8]),
+        obsViagem:  String(row[9]),
+        horaFim:    String(row[10]),
+        latFim:     String(row[11]),
+        longFim:    String(row[12]),
+        gpsLog:     gpsIndex[rid] || []
+      });
+    }
+    return { success: true, rotas: rotas, total: rotas.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 // ── Funções privadas ─────────────────────────────────────────
 function _atualizarStatusVeiculo(placa, status) {
   const sheet = getOrCreateSheet(SHEET_VEICULOS);
@@ -418,6 +552,70 @@ function _atualizarStatusVeiculo(placa, status) {
       sheet.getRange(i + 1, 3).setValue(status);
       return;
     }
+  }
+}
+
+// ── Buscar Rota por Placa ────────────────────────────────────
+function buscarPorPlaca(placa) {
+  try {
+    if (!placa) return { success: false, error: 'Placa não informada.' };
+    const placaUp   = placa.toUpperCase().trim();
+    const rotaRows  = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
+    const gpsRows   = getOrCreateSheet(SHEET_GPS).getDataRange().getValues();
+
+    // Coletar todas as rotas da placa, do mais recente ao mais antigo
+    const rotas = [];
+    for (let i = rotaRows.length - 1; i >= 1; i--) {
+      if (String(rotaRows[i][2]).toUpperCase() === placaUp) {
+        rotas.push({
+          id:         String(rotaRows[i][0]),
+          nome:       String(rotaRows[i][1]),
+          placa:      String(rotaRows[i][2]),
+          modelo:     String(rotaRows[i][3]),
+          obsInicial: String(rotaRows[i][4]),
+          horaInicio: String(rotaRows[i][5]),
+          latInicio:  String(rotaRows[i][6]),
+          longInicio: String(rotaRows[i][7]),
+          status:     String(rotaRows[i][8]),
+          obsViagem:  String(rotaRows[i][9]),
+          horaFim:    String(rotaRows[i][10]),
+          latFim:     String(rotaRows[i][11]),
+          longFim:    String(rotaRows[i][12])
+        });
+      }
+    }
+
+    if (rotas.length === 0) {
+      return { success: false, error: 'Nenhuma rota encontrada para a placa ' + placaUp + '.' };
+    }
+
+    // Última posição GPS da rota mais recente
+    const rotaAtual = rotas[0];
+    let ultimaPos = null;
+    for (let i = gpsRows.length - 1; i >= 1; i--) {
+      if (String(gpsRows[i][0]) === rotaAtual.id) {
+        ultimaPos = {
+          timestamp:  String(gpsRows[i][1]),
+          latitude:   gpsRows[i][2],
+          longitude:  gpsRows[i][3],
+          velocidade: gpsRows[i][4]
+        };
+        break;
+      }
+    }
+    // Fallback: ponto de início da rota
+    if (!ultimaPos && rotaAtual.latInicio && rotaAtual.latInicio !== '') {
+      ultimaPos = {
+        timestamp:  rotaAtual.horaInicio,
+        latitude:   parseFloat(rotaAtual.latInicio),
+        longitude:  parseFloat(rotaAtual.longInicio),
+        velocidade: ''
+      };
+    }
+
+    return { success: true, rota: rotaAtual, ultimaPos: ultimaPos, totalRotas: rotas.length };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 }
 
