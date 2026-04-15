@@ -345,6 +345,11 @@ function gerarRelatorio(filtros) {
 // O corpo deve ser JSON com o campo "action" indicando a operação.
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: 'Corpo da requisição ausente.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     var payload = JSON.parse(e.postData.contents);
     var action  = payload.action;
     var result;
