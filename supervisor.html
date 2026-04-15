@@ -1007,6 +1007,10 @@ function decimalToDMS(lat, lng) {
   return toDMSPart(latNum, 'N', 'S') + ' ' + toDMSPart(lngNum, 'E', 'W');
 }
 
+function createGoogleMapsUrl(lat, lng) {
+  return 'https://www.google.com/maps?q=' + encodeURIComponent(String(lat) + ',' + String(lng));
+}
+
 // ─── Dashboard ─────────────────────────────────────────────────
 function carregarRotasAtivas() {
   esconderEl('dashboard-content');
@@ -1246,7 +1250,7 @@ function renderRastrearResult(res) {
     document.getElementById('rastrear-decimal').textContent =
       'Lat: ' + pos.latitude + '  |  Long: ' + pos.longitude;
 
-    var mapsLink  = 'https://www.google.com/maps?q=' + pos.latitude + ',' + pos.longitude;
+    var mapsLink  = createGoogleMapsUrl(pos.latitude, pos.longitude);
     var routeLink = 'https://www.google.com/maps/search/?api=1&query=' + pos.latitude + ',' + pos.longitude;
     document.getElementById('rastrear-maps-btn').href  = mapsLink;
     document.getElementById('rastrear-route-btn').href = routeLink;
@@ -1283,7 +1287,7 @@ function renderRastrearResult(res) {
       btnMapa.textContent = '🗺️ Abrir';
       btnMapa.target = '_blank';
       btnMapa.rel = 'noopener noreferrer';
-      btnMapa.href = 'https://www.google.com/maps?q=' + encodeURIComponent(latNum + ',' + lngNum);
+      btnMapa.href = createGoogleMapsUrl(latNum, lngNum);
       tdMapa.appendChild(btnMapa);
 
       tr.appendChild(tdData);

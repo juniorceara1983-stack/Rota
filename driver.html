@@ -434,7 +434,7 @@
 // ── URL do Google Apps Script implantado ────────────────────
 // Após implantar o Code.gs como Web App, cole a URL aqui:
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTW-OiT1BK-vw3HwH2EktiKRdTAO7yiIKBDvCGu3Dgpi8mlOS6Rvzhjc6fw5_gfUfXXA/exec';
-var GPS_RETORNO_MIN_MS = 5000;
+var GPS_DUPLICATE_PROTECTION_INTERVAL_MS = 5000;
 
 // ── Chamada à API ────────────────────────────────────────────
 function callApi(action, data) {
@@ -724,7 +724,7 @@ function enviarPosicaoGPS() {
 function enviarPosicaoAoRetomar() {
   var agora = Date.now();
   // Evita duplicidade de envio em retornos rápidos de foco/visibilidade.
-  if (agora - (estado.ultimaGpsTsMs || 0) < GPS_RETORNO_MIN_MS) return;
+  if (agora - (estado.ultimaGpsTsMs || 0) < GPS_DUPLICATE_PROTECTION_INTERVAL_MS) return;
   enviarPosicaoGPS();
 }
 
@@ -824,18 +824,19 @@ function _finalizarRota() {
   var btn   = document.getElementById('btn-finalizar');
   var errEl = document.getElementById('err-rota');
   var kmFimRaw = document.getElementById('km-fim').value.trim();
-  if (!kmFimRaw || isNaN(Number(kmFimRaw)) || Number(kmFimRaw) < 0) {
+  var kmFimNum = Number(kmFimRaw);
+  if (!kmFimRaw || isNaN(kmFimNum) || kmFimNum < 0) {
     mostrarErro(errEl, 'Informe uma quilometragem final válida para encerrar a rota.');
     return;
   }
-  if (estado.kmInicio !== '' && !isNaN(Number(estado.kmInicio)) && Number(kmFimRaw) < Number(estado.kmInicio)) {
+  if (estado.kmInicio !== '' && !isNaN(Number(estado.kmInicio)) && kmFimNum < Number(estado.kmInicio)) {
     mostrarErro(errEl, 'A quilometragem final não pode ser menor que a inicial.');
     return;
   }
   esconderErro(errEl);
   setBtnLoading(btn, true, '<span class="spinner"></span> Finalizando…');
   var ts = new Date().toISOString();
-  var kmFim = Number(kmFimRaw);
+  var kmFim = kmFimNum;
 
   function _chamar(lat, lng) {
     callApi('finalizarRota', { rotaId: estado.rotaId, latitude: lat, longitude: lng, timestamp: ts, kmFim: kmFim })
