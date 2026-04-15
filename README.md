@@ -11,6 +11,8 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 | **Página Inicial** | [https://juniorceara1983-stack.github.io/Rota/](https://juniorceara1983-stack.github.io/Rota/) |
 | **Painel do Motorista** | [https://juniorceara1983-stack.github.io/Rota/driver.html](https://juniorceara1983-stack.github.io/Rota/driver.html) |
 | **Painel do Supervisor** | [https://juniorceara1983-stack.github.io/Rota/supervisor.html](https://juniorceara1983-stack.github.io/Rota/supervisor.html) |
+| **Apps Script (API)** | [Implantação](https://script.google.com/macros/s/AKfycbzcXrHlGIxwIcUrk6ul39YJkVaVXMjfXxN8TJbTjaE6PoWQtW5VM2k7EPa82qzalBJhmg/exec) |
+| **Planilha Google Sheets** | [1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ](https://docs.google.com/spreadsheets/d/1qu5ZkDwNnCnsFM_gKjDwbfAOGgdtb0XlOAc-_YqS7dQ) |
 
 ---
 
