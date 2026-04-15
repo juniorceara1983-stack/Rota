@@ -8,6 +8,7 @@ const SHEET_GPS      = 'GPS_Log';
 const SHEET_VEICULOS = 'Veiculos';
 const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
+// Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
 // ID da planilha – necessário quando o script é chamado via doPost (web app standalone)
@@ -96,9 +97,7 @@ function iniciarRota(data) {
       '',
       '',
       '',
-      data.kmInicio !== undefined && data.kmInicio !== null && data.kmInicio !== ''
-        ? Number(data.kmInicio)
-        : '',
+      _toNumberOrBlank(data.kmInicio),
       ''
     ]);
     _atualizarStatusVeiculo((data.placa || '').toUpperCase(), 'Em_Transito');
@@ -158,11 +157,7 @@ function finalizarRota(data) {
         sheet.getRange(i + 1, 11).setValue(ts);
         sheet.getRange(i + 1, 12).setValue(data.latitude  || '');
         sheet.getRange(i + 1, 13).setValue(data.longitude || '');
-        sheet.getRange(i + 1, 15).setValue(
-          data.kmFim !== undefined && data.kmFim !== null && data.kmFim !== ''
-            ? Number(data.kmFim)
-            : ''
-        );
+        sheet.getRange(i + 1, 15).setValue(_toNumberOrBlank(data.kmFim));
         _atualizarStatusVeiculo(rows[i][2], 'Disponivel');
         return { success: true, timestamp: ts };
       }
@@ -765,6 +760,10 @@ function _ensureRotasColumns(sheet) {
   } catch (err) {
     Logger.log('Falha ao garantir colunas de quilometragem: ' + err.message);
   }
+}
+
+function _toNumberOrBlank(value) {
+  return value !== undefined && value !== null && value !== '' ? Number(value) : '';
 }
 
 function _formatTs(iso) {
