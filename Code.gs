@@ -422,6 +422,9 @@ function doPost(e) {
       case 'buscarPorPlaca':
         result = buscarPorPlaca(payload.placa);
         break;
+      case 'buscarRotaAtivaMotorista':
+        result = buscarRotaAtivaMotorista(payload.nome);
+        break;
       default:
         result = { success: false, error: 'Ação desconhecida: ' + action };
     }
@@ -621,6 +624,33 @@ function buscarPorPlaca(placa) {
     }
 
     return { success: true, rota: rotaAtual, ultimaPos: ultimaPos, totalRotas: rotas.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Buscar Rota Ativa por Motorista ──────────────────────────
+function buscarRotaAtivaMotorista(nome) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_ROTAS);
+    const rows  = sheet.getDataRange().getValues();
+    const nomeMotorista = (nome || '').trim().toLowerCase();
+    for (let i = rows.length - 1; i >= 1; i--) {
+      if (String(rows[i][1]).trim().toLowerCase() === nomeMotorista && rows[i][8] === 'Em_Transito') {
+        return {
+          success: true,
+          rota: {
+            id:         String(rows[i][0]),
+            nome:       String(rows[i][1]),
+            placa:      String(rows[i][2]),
+            modelo:     String(rows[i][3]),
+            obsInicial: String(rows[i][4]),
+            horaInicio: String(rows[i][5])
+          }
+        };
+      }
+    }
+    return { success: false };
   } catch (err) {
     return { success: false, error: err.message };
   }

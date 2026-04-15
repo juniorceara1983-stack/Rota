@@ -410,17 +410,471 @@
 <script>
 // ─── Estado ───────────────────────────────────────────────────
 var estado = {
-  rotaId:      null,
-  nome:        '',
-  placa:       '',
-  modelo:      '',
-  obsInicial:  '',
-  horaInicio:  null,
-  intervalGPS: 10,
-  gpsTimer:    null,
-  observacoes: [],
-  ultimaPos:   null
+  rotaId:        null,
+  nome:          '',
+  placa:         '',
+  modelo:        '',
+  obsInicial:    '',
+  horaInicio:    null,
+  intervalGPS:   10,
+  gpsTimer:      null,
+  observacoes:   [],
+  ultimaPos:     null,
+  ultimaGpsTsMs: 0
 };
+
+// ─── Inicialização ────────────────────────────────────────────
+window.onload = function () {
+  var saved = localStorage.getItem('rotaAtiva');
+  if (saved) {
+    try {
+      var r = JSON.parse(saved);
+      if (r && r.rotaId) {
+        estado.rotaId        = r.rotaId;
+        estado.nome          = r.nome          || '';
+        estado.placa         = r.placa         || '';
+        estado.modelo        = r.modelo        || '';
+        estado.obsInicial    = r.obsInicial    || '';
+        estado.horaInicio    = r.horaInicio    || null;
+        estado.intervalGPS   = r.intervalGPS   || 10;
+        estado.observacoes   = r.observacoes   || [];
+        estado.ultimaGpsTsMs = r.ultimaGpsTsMs || 0;
+        mostrarTelaRota();
+        return;
+      }
+    } catch (_) {}
+  }
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res && res.success && res.config && res.config.Intervalo_GPS) {
+        estado.intervalGPS = parseInt(res.config.Intervalo_GPS, 10) || 10;
+      }
+    })
+    .getConfig();
+};
+
+// ─── Page Visibility – GPS em segundo plano ───────────────────
+document.addEventListener('visibilitychange', function () {
+  if (!estado.rotaId) return;
+  if (document.visibilityState === 'visible') {
+    var intervaloMs = estado.intervalGPS * 60 * 1000;
+    var agora = Date.now();
+    if (agora - (estado.ultimaGpsTsMs || 0) >= intervaloMs) {
+      enviarPosicaoGPS();
+    }
+    if (estado.gpsTimer) clearInterval(estado.gpsTimer);
+    estado.gpsTimer = setInterval(enviarPosicaoGPS, intervaloMs);
+  } else {
+    if (estado.gpsTimer) {
+      clearInterval(estado.gpsTimer);
+      estado.gpsTimer = null;
+    }
+  }
+});
+
+// ─── Navegação ────────────────────────────────────────────────
+function mostrarTela(id) {
+  document.querySelectorAll('.screen').forEach(function (s) {
+    s.classList.remove('active');
+  });
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function mostrarTelaRota() {
+  mostrarTela('tela-rota');
+  document.getElementById('rt-nome').textContent    = estado.nome;
+  document.getElementById('rt-veiculo').textContent = estado.placa + ' – ' + estado.modelo;
+  document.getElementById('rt-inicio').textContent  = estado.horaInicio ? formatarData(estado.horaInicio) : '–';
+  document.getElementById('rt-subtitle').textContent = estado.placa;
+
+  if (estado.obsInicial) {
+    document.getElementById('rt-obs-ini').textContent = estado.obsInicial;
+    document.getElementById('rt-obs-ini-row').classList.remove('hidden');
+  } else {
+    document.getElementById('rt-obs-ini-row').classList.add('hidden');
+  }
+
+  renderObservacoes();
+  iniciarGPS();
+}
+
+// ─── Iniciar Rota ─────────────────────────────────────────────
+function iniciarRota() {
+  var nome   = document.getElementById('nome').value.trim();
+  var placa  = document.getElementById('placa').value.trim().toUpperCase();
+  var modelo = document.getElementById('modelo').value.trim();
+  var obs    = document.getElementById('obs-inicial').value.trim();
+  var errEl  = document.getElementById('err-registro');
+
+  if (!nome)   { mostrarErro(errEl, 'Por favor, informe seu nome.'); return; }
+  if (!placa)  { mostrarErro(errEl, 'Por favor, informe a placa do veículo.'); return; }
+  if (!modelo) { mostrarErro(errEl, 'Por favor, informe o modelo do veículo.'); return; }
+  esconderErro(errEl);
+
+  var btn = document.getElementById('btn-iniciar');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Verificando…');
+
+  // Verificar se já existe rota ativa para este motorista
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (res && res.success && res.rota) {
+        // Rota ativa encontrada – restaurar estado e ir para tela de rota
+        var r = res.rota;
+        estado.rotaId        = r.id;
+        estado.nome          = r.nome;
+        estado.placa         = r.placa;
+        estado.modelo        = r.modelo;
+        estado.obsInicial    = r.obsInicial;
+        estado.horaInicio    = r.horaInicio;
+        estado.observacoes   = [];
+        estado.ultimaGpsTsMs = 0;
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        salvarEstado();
+        mostrarTelaRota();
+        return;
+      }
+      // Sem rota ativa – validar veículo e iniciar
+      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+    })
+    .withFailureHandler(function () {
+      // Erro ao verificar – tentar iniciar normalmente
+      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+    })
+    .buscarRotaAtivaMotorista(nome);
+}
+
+function _validarEIniciar(nome, placa, modelo, obs, btn, errEl) {
+  setBtnLoading(btn, true, '<span class="spinner"></span> Verificando veículo…');
+
+  // Validar veículo antes de iniciar
+  google.script.run
+    .withSuccessHandler(function (valRes) {
+      if (!valRes.success) {
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        mostrarErro(errEl, valRes.error || 'Veículo não autorizado.');
+        return;
+      }
+      setBtnLoading(btn, true, '<span class="spinner"></span> Iniciando…');
+      var ts = new Date().toISOString();
+
+      function _chamar(lat, lng) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+            if (res.success) {
+              estado.rotaId        = res.id;
+              estado.nome          = nome;
+              estado.placa         = placa;
+              estado.modelo        = modelo;
+              estado.obsInicial    = obs;
+              estado.horaInicio    = ts;
+              estado.observacoes   = [];
+              estado.ultimaGpsTsMs = 0;
+              salvarEstado();
+              mostrarTelaRota();
+            } else {
+              mostrarErro(errEl, 'Erro ao iniciar rota: ' + (res.error || 'desconhecido'));
+            }
+          })
+          .withFailureHandler(function (err) {
+            setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+            mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+          })
+          .iniciarRota({
+            nome: nome, placa: placa, modelo: modelo,
+            obsInicial: obs, timestamp: ts,
+            latitude: lat, longitude: lng
+          });
+      }
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
+          function ()    { _chamar('', ''); },
+          { timeout: 10000, enableHighAccuracy: true }
+        );
+      } else {
+        _chamar('', '');
+      }
+    })
+    .withFailureHandler(function (err) {
+      setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    })
+    .validarVeiculo({ placa: placa, modelo: modelo });
+}
+
+// ─── GPS Tracking ─────────────────────────────────────────────
+function iniciarGPS() {
+  atualizarBarraGPS('wait', 'Aguardando sinal GPS…');
+  enviarPosicaoGPS();
+  if (estado.gpsTimer) clearInterval(estado.gpsTimer);
+  estado.gpsTimer = setInterval(enviarPosicaoGPS, estado.intervalGPS * 60 * 1000);
+}
+
+function pararGPS() {
+  if (estado.gpsTimer) {
+    clearInterval(estado.gpsTimer);
+    estado.gpsTimer = null;
+  }
+}
+
+function enviarPosicaoGPS() {
+  if (!navigator.geolocation) {
+    atualizarBarraGPS('off', 'GPS não disponível neste dispositivo.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      estado.ultimaPos     = pos;
+      estado.ultimaGpsTsMs = Date.now();
+      salvarEstado();
+      atualizarBarraGPS('on',
+        'GPS ativo – ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5));
+      if (estado.rotaId) {
+        google.script.run
+          .withSuccessHandler(function () {})
+          .withFailureHandler(function () {})
+          .registrarPontoGPS({
+            rotaId:     estado.rotaId,
+            latitude:   pos.coords.latitude,
+            longitude:  pos.coords.longitude,
+            velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
+                          ? pos.coords.speed : '',
+            timestamp:  new Date().toISOString()
+          });
+      }
+    },
+    function (e) {
+      atualizarBarraGPS('off', 'GPS indisponível: ' + e.message);
+      // Tentar novamente sem alta precisão como fallback
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          estado.ultimaPos     = pos;
+          estado.ultimaGpsTsMs = Date.now();
+          salvarEstado();
+          atualizarBarraGPS('on',
+            'GPS ativo – ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5));
+          if (estado.rotaId) {
+            google.script.run
+              .withSuccessHandler(function () {})
+              .withFailureHandler(function () {})
+              .registrarPontoGPS({
+                rotaId:     estado.rotaId,
+                latitude:   pos.coords.latitude,
+                longitude:  pos.coords.longitude,
+                velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
+                              ? pos.coords.speed : '',
+                timestamp:  new Date().toISOString()
+              });
+          }
+        },
+        function () {},
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      );
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+  );
+}
+
+function atualizarBarraGPS(status, texto) {
+  var icons = { on: '🟢', off: '🔴', wait: '🟡' };
+  var iconEl = document.getElementById('gps-icon');
+  var txtEl  = document.getElementById('gps-status');
+  if (iconEl) iconEl.textContent = icons[status] || '🟡';
+  if (txtEl)  txtEl.textContent  = texto;
+}
+
+// ─── Observação de Viagem ─────────────────────────────────────
+function adicionarObservacao() {
+  var textarea = document.getElementById('nova-obs');
+  var obs      = textarea.value.trim();
+  var errEl    = document.getElementById('err-rota');
+  if (!obs) { mostrarErro(errEl, 'Digite uma observação antes de adicionar.'); return; }
+
+  var btn   = document.getElementById('btn-add-obs');
+  setBtnLoading(btn, true, '<span class="spinner spinner-dark"></span> Enviando…');
+
+  var ts = new Date().toISOString();
+  google.script.run
+    .withSuccessHandler(function (res) {
+      setBtnLoading(btn, false, '+ &nbsp; Adicionar Observação');
+      if (res.success) {
+        estado.observacoes.push({ ts: ts, texto: obs });
+        salvarEstado();
+        renderObservacoes();
+        textarea.value = '';
+        esconderErro(errEl);
+      } else {
+        mostrarErro(errEl, 'Erro: ' + (res.error || ''));
+      }
+    })
+    .withFailureHandler(function (err) {
+      setBtnLoading(btn, false, '+ &nbsp; Adicionar Observação');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    })
+    .adicionarObservacao({ rotaId: estado.rotaId, observacao: obs, timestamp: ts });
+}
+
+function renderObservacoes() {
+  var list = document.getElementById('obs-list');
+  var card = document.getElementById('obs-list-card');
+  list.innerHTML = '';
+  if (!estado.observacoes || estado.observacoes.length === 0) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+  estado.observacoes.forEach(function (o) {
+    var div = document.createElement('div');
+    div.className = 'obs-item';
+    div.innerHTML =
+      '<div class="obs-time">' + formatarData(o.ts) + '</div>' +
+      '<div>' + escapeHtml(o.texto) + '</div>';
+    list.appendChild(div);
+  });
+}
+
+// ─── Modal de Confirmação ─────────────────────────────────────
+var _modalCallback = null;
+
+function mostrarConfirm(titulo, msg, callback, btnLabel) {
+  document.getElementById('modal-title').textContent = titulo || 'Confirmação';
+  document.getElementById('modal-msg').textContent   = msg;
+  var ok = document.getElementById('modal-ok');
+  ok.textContent = btnLabel || 'Confirmar';
+  _modalCallback = callback;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-box').classList.remove('hidden');
+}
+
+function fecharModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-box').classList.add('hidden');
+  _modalCallback = null;
+}
+
+function confirmarModal() {
+  var cb = _modalCallback;
+  fecharModal();
+  if (cb) cb();
+}
+
+// ─── Finalizar Rota ───────────────────────────────────────────
+function confirmarFinalizar() {
+  mostrarConfirm(
+    'Finalizar Rota',
+    'Deseja realmente finalizar esta rota?',
+    _finalizarRota,
+    '🔴 Finalizar'
+  );
+}
+
+function _finalizarRota() {
+  var btn   = document.getElementById('btn-finalizar');
+  var errEl = document.getElementById('err-rota');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Finalizando…');
+  var ts = new Date().toISOString();
+
+  function _chamar(lat, lng) {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        setBtnLoading(btn, false, '🔴 &nbsp; Finalizar Rota');
+        if (res.success) {
+          pararGPS();
+          localStorage.removeItem('rotaAtiva');
+          document.getElementById('fin-hora').textContent = formatarData(res.timestamp || ts);
+          mostrarTela('tela-final');
+        } else {
+          mostrarErro(errEl, 'Erro ao finalizar: ' + (res.error || ''));
+        }
+      })
+      .withFailureHandler(function (err) {
+        setBtnLoading(btn, false, '🔴 &nbsp; Finalizar Rota');
+        mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+      })
+      .finalizarRota({ rotaId: estado.rotaId, latitude: lat, longitude: lng, timestamp: ts });
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      function (pos) { _chamar(pos.coords.latitude, pos.coords.longitude); },
+      function ()    { _chamar('', ''); },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  } else {
+    _chamar('', '');
+  }
+}
+
+// ─── Nova Rota ────────────────────────────────────────────────
+function novaRota() {
+  var intervaloSalvo = estado.intervalGPS;
+  estado = {
+    rotaId: null, nome: '', placa: '', modelo: '',
+    obsInicial: '', horaInicio: null,
+    intervalGPS: intervaloSalvo,
+    gpsTimer: null, observacoes: [], ultimaPos: null,
+    ultimaGpsTsMs: 0
+  };
+  document.getElementById('nome').value        = '';
+  document.getElementById('placa').value       = '';
+  document.getElementById('modelo').value      = '';
+  document.getElementById('obs-inicial').value = '';
+  esconderErro(document.getElementById('err-registro'));
+  mostrarTela('tela-registro');
+}
+
+// ─── Utilitários ──────────────────────────────────────────────
+function salvarEstado() {
+  localStorage.setItem('rotaAtiva', JSON.stringify({
+    rotaId:        estado.rotaId,
+    nome:          estado.nome,
+    placa:         estado.placa,
+    modelo:        estado.modelo,
+    obsInicial:    estado.obsInicial,
+    horaInicio:    estado.horaInicio,
+    intervalGPS:   estado.intervalGPS,
+    observacoes:   estado.observacoes,
+    ultimaGpsTsMs: estado.ultimaGpsTsMs
+  }));
+}
+
+function formatarData(iso) {
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('pt-BR') + ' às ' +
+           d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return iso; }
+}
+
+function setBtnLoading(btn, loading, html) {
+  btn.disabled   = loading;
+  btn.innerHTML  = html;
+}
+
+function mostrarErro(el, msg) {
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function esconderErro(el) {
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
 
 // ─── Inicialização ────────────────────────────────────────────
 window.onload = function () {

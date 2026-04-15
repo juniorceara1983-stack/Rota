@@ -428,16 +428,17 @@ function callApi(action, data) {
 
 // ─── Estado ───────────────────────────────────────────────────
 var estado = {
-  rotaId:      null,
-  nome:        '',
-  placa:       '',
-  modelo:      '',
-  obsInicial:  '',
-  horaInicio:  null,
-  intervalGPS: 10,
-  gpsTimer:    null,
-  observacoes: [],
-  ultimaPos:   null
+  rotaId:        null,
+  nome:          '',
+  placa:         '',
+  modelo:        '',
+  obsInicial:    '',
+  horaInicio:    null,
+  intervalGPS:   10,
+  gpsTimer:      null,
+  observacoes:   [],
+  ultimaPos:     null,
+  ultimaGpsTsMs: 0
 };
 
 // ─── Inicialização ────────────────────────────────────────────
@@ -447,14 +448,15 @@ window.onload = function () {
     try {
       var r = JSON.parse(saved);
       if (r && r.rotaId) {
-        estado.rotaId      = r.rotaId;
-        estado.nome        = r.nome        || '';
-        estado.placa       = r.placa       || '';
-        estado.modelo      = r.modelo      || '';
-        estado.obsInicial  = r.obsInicial  || '';
-        estado.horaInicio  = r.horaInicio  || null;
-        estado.intervalGPS = r.intervalGPS || 10;
-        estado.observacoes = r.observacoes || [];
+        estado.rotaId        = r.rotaId;
+        estado.nome          = r.nome          || '';
+        estado.placa         = r.placa         || '';
+        estado.modelo        = r.modelo        || '';
+        estado.obsInicial    = r.obsInicial    || '';
+        estado.horaInicio    = r.horaInicio    || null;
+        estado.intervalGPS   = r.intervalGPS   || 10;
+        estado.observacoes   = r.observacoes   || [];
+        estado.ultimaGpsTsMs = r.ultimaGpsTsMs || 0;
         mostrarTelaRota();
         return;
       }
@@ -468,6 +470,25 @@ window.onload = function () {
       }
     });
 };
+
+// ─── Page Visibility – GPS em segundo plano ───────────────────
+document.addEventListener('visibilitychange', function () {
+  if (!estado.rotaId) return;
+  if (document.visibilityState === 'visible') {
+    var intervaloMs = estado.intervalGPS * 60 * 1000;
+    var agora = Date.now();
+    if (agora - (estado.ultimaGpsTsMs || 0) >= intervaloMs) {
+      enviarPosicaoGPS();
+    }
+    if (estado.gpsTimer) clearInterval(estado.gpsTimer);
+    estado.gpsTimer = setInterval(enviarPosicaoGPS, intervaloMs);
+  } else {
+    if (estado.gpsTimer) {
+      clearInterval(estado.gpsTimer);
+      estado.gpsTimer = null;
+    }
+  }
+});
 
 // ─── Navegação ────────────────────────────────────────────────
 function mostrarTela(id) {
@@ -510,6 +531,37 @@ function iniciarRota() {
   esconderErro(errEl);
 
   var btn = document.getElementById('btn-iniciar');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Verificando…');
+
+  // Verificar se já existe rota ativa para este motorista
+  callApi('buscarRotaAtivaMotorista', { nome: nome })
+    .then(function (res) {
+      if (res && res.success && res.rota) {
+        // Rota ativa encontrada – restaurar estado e ir para tela de rota
+        var r = res.rota;
+        estado.rotaId        = r.id;
+        estado.nome          = r.nome;
+        estado.placa         = r.placa;
+        estado.modelo        = r.modelo;
+        estado.obsInicial    = r.obsInicial;
+        estado.horaInicio    = r.horaInicio;
+        estado.observacoes   = [];
+        estado.ultimaGpsTsMs = 0;
+        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
+        salvarEstado();
+        mostrarTelaRota();
+        return;
+      }
+      // Sem rota ativa – validar veículo e iniciar
+      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+    })
+    .catch(function () {
+      // Erro ao verificar – tentar iniciar normalmente
+      _validarEIniciar(nome, placa, modelo, obs, btn, errEl);
+    });
+}
+
+function _validarEIniciar(nome, placa, modelo, obs, btn, errEl) {
   setBtnLoading(btn, true, '<span class="spinner"></span> Verificando veículo…');
 
   // Validar veículo antes de iniciar
@@ -532,13 +584,14 @@ function iniciarRota() {
           .then(function (res) {
             setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
             if (res.success) {
-              estado.rotaId      = res.id;
-              estado.nome        = nome;
-              estado.placa       = placa;
-              estado.modelo      = modelo;
-              estado.obsInicial  = obs;
-              estado.horaInicio  = ts;
-              estado.observacoes = [];
+              estado.rotaId        = res.id;
+              estado.nome          = nome;
+              estado.placa         = placa;
+              estado.modelo        = modelo;
+              estado.obsInicial    = obs;
+              estado.horaInicio    = ts;
+              estado.observacoes   = [];
+              estado.ultimaGpsTsMs = 0;
               salvarEstado();
               mostrarTelaRota();
             } else {
@@ -589,7 +642,9 @@ function enviarPosicaoGPS() {
   }
   navigator.geolocation.getCurrentPosition(
     function (pos) {
-      estado.ultimaPos = pos;
+      estado.ultimaPos     = pos;
+      estado.ultimaGpsTsMs = Date.now();
+      salvarEstado();
       atualizarBarraGPS('on',
         'GPS ativo – ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5));
       if (estado.rotaId) {
@@ -603,8 +658,32 @@ function enviarPosicaoGPS() {
         }).catch(function () {});
       }
     },
-    function (e) { atualizarBarraGPS('off', 'GPS indisponível: ' + e.message); },
-    { enableHighAccuracy: true, timeout: 10000 }
+    function (e) {
+      atualizarBarraGPS('off', 'GPS indisponível: ' + e.message);
+      // Tentar novamente sem alta precisão como fallback
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          estado.ultimaPos     = pos;
+          estado.ultimaGpsTsMs = Date.now();
+          salvarEstado();
+          atualizarBarraGPS('on',
+            'GPS ativo – ' + pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5));
+          if (estado.rotaId) {
+            callApi('registrarPontoGPS', {
+              rotaId:     estado.rotaId,
+              latitude:   pos.coords.latitude,
+              longitude:  pos.coords.longitude,
+              velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
+                            ? pos.coords.speed : '',
+              timestamp:  new Date().toISOString()
+            }).catch(function () {});
+          }
+        },
+        function () {},
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+      );
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
   );
 }
 
@@ -743,7 +822,8 @@ function novaRota() {
     rotaId: null, nome: '', placa: '', modelo: '',
     obsInicial: '', horaInicio: null,
     intervalGPS: intervaloSalvo,
-    gpsTimer: null, observacoes: [], ultimaPos: null
+    gpsTimer: null, observacoes: [], ultimaPos: null,
+    ultimaGpsTsMs: 0
   };
   document.getElementById('nome').value        = '';
   document.getElementById('placa').value       = '';
@@ -756,14 +836,15 @@ function novaRota() {
 // ─── Utilitários ──────────────────────────────────────────────
 function salvarEstado() {
   localStorage.setItem('rotaAtiva', JSON.stringify({
-    rotaId:      estado.rotaId,
-    nome:        estado.nome,
-    placa:       estado.placa,
-    modelo:      estado.modelo,
-    obsInicial:  estado.obsInicial,
-    horaInicio:  estado.horaInicio,
-    intervalGPS: estado.intervalGPS,
-    observacoes: estado.observacoes
+    rotaId:        estado.rotaId,
+    nome:          estado.nome,
+    placa:         estado.placa,
+    modelo:        estado.modelo,
+    obsInicial:    estado.obsInicial,
+    horaInicio:    estado.horaInicio,
+    intervalGPS:   estado.intervalGPS,
+    observacoes:   estado.observacoes,
+    ultimaGpsTsMs: estado.ultimaGpsTsMs
   }));
 }
 
