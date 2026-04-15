@@ -452,6 +452,7 @@
   <div class="tab active" onclick="selecionarTab('dashboard')">📊 Dashboard</div>
   <div class="tab"        onclick="selecionarTab('veiculos')">🚗 Veículos</div>
   <div class="tab"        onclick="selecionarTab('rastrear')">🔍 Rastrear</div>
+  <div class="tab"        onclick="selecionarTab('abastecimento')">⛽ Abastecimento</div>
   <div class="tab"        onclick="selecionarTab('config')">⚙️ Config</div>
   <div class="tab"        onclick="selecionarTab('relatorios')">📄 Relatórios</div>
 </div>
@@ -581,10 +582,10 @@
 
   <div class="card">
     <div class="card-header">
-      <div>
-        <div class="card-title">🔍 Rastrear Veículo por Placa</div>
-        <div class="card-subtitle">Localização da última posição registrada</div>
-      </div>
+        <div>
+          <div class="card-title">🔍 Rastrear Veículo por Placa</div>
+          <div class="card-subtitle">Consulta da última posição e histórico de localizações</div>
+        </div>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
@@ -659,6 +660,87 @@
           </a>
         </div>
       </div>
+
+      <div style="border-top:1px solid var(--border);margin:12px 0 14px"></div>
+      <div class="card-title" style="margin-bottom:10px">🧭 Registros de Localização</div>
+      <div id="rastrear-localizacoes-empty" class="hidden" style="color:var(--muted);font-size:14px;margin-bottom:8px">
+        Nenhum registro de localização encontrado para esta placa.
+      </div>
+      <div id="rastrear-localizacoes-wrap" class="table-wrap">
+        <table id="rastrear-localizacoes-table">
+          <thead>
+            <tr><th>Data/Hora</th><th>Coordenadas</th><th>Velocidade</th><th>Mapa</th></tr>
+          </thead>
+          <tbody id="rastrear-localizacoes-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: ABASTECIMENTO
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-abastecimento" class="tab-panel">
+  <div id="msg-abastecimento" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">⛽ Registrar Abastecimento</div>
+        <div class="card-subtitle">Informe quilometragem, litros, valor e data/hora</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="abast-placa">Placa</label>
+        <input id="abast-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="ABC-1234">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="abast-km">Quilometragem (km)</label>
+        <input id="abast-km" type="number" min="0" step="0.1" class="form-control" placeholder="12345.6">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="abast-litros">Litros</label>
+        <input id="abast-litros" type="number" min="0" step="0.01" class="form-control" placeholder="45.5">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="abast-valor">Valor (R$)</label>
+        <input id="abast-valor" type="number" min="0" step="0.01" class="form-control" placeholder="320.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="abast-datahora">Data/Hora</label>
+        <input id="abast-datahora" type="datetime-local" class="form-control">
+      </div>
+    </div>
+    <button class="btn btn-success" style="width:auto;padding:10px 22px" onclick="registrarAbastecimento()">
+      💾 &nbsp; Salvar Abastecimento
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Histórico de Abastecimentos</div>
+      <button class="btn btn-outline btn-sm" onclick="carregarAbastecimentos()">🔄 Atualizar</button>
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group" style="max-width:240px">
+        <label class="form-label" for="abast-filtro-placa">Filtrar por placa</label>
+        <input id="abast-filtro-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="Todas">
+      </div>
+    </div>
+    <div id="abast-empty" class="empty hidden">
+      <div class="empty-icon">⛽</div>
+      <div class="empty-text">Nenhum abastecimento registrado.</div>
+    </div>
+    <div class="table-wrap">
+      <table id="abast-table">
+        <thead>
+          <tr><th>Placa</th><th>KM</th><th>Litros</th><th>Valor</th><th>Data/Hora</th></tr>
+        </thead>
+        <tbody id="abast-body"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -898,13 +980,14 @@ function selecionarTab(nome) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
   var tabs = document.getElementById('tabs').querySelectorAll('.tab');
-  var ordem = ['dashboard', 'veiculos', 'rastrear', 'config', 'relatorios'];
+  var ordem = ['dashboard', 'veiculos', 'rastrear', 'abastecimento', 'config', 'relatorios'];
   var idx   = ordem.indexOf(nome);
   if (idx >= 0) tabs[idx].classList.add('active');
   document.getElementById('panel-' + nome).classList.add('active');
 
   if (nome === 'veiculos')   carregarVeiculos();
   if (nome === 'dashboard')  carregarRotasAtivas();
+  if (nome === 'abastecimento') carregarAbastecimentos();
 }
 
 // ─── Utilitário DMS ───────────────────────────────────────────
@@ -1126,6 +1209,7 @@ function buscarPorPlaca() {
 function renderRastrearResult(res) {
   var r   = res.rota;
   var pos = res.ultimaPos;
+  var localizacoes = res.localizacoes || [];
 
   document.getElementById('rastrear-veiculo-title').textContent =
     '🚗 ' + r.placa + ' – ' + r.modelo;
@@ -1168,7 +1252,102 @@ function renderRastrearResult(res) {
     document.getElementById('rastrear-route-btn').href = routeLink;
   }
 
+  var locBody = document.getElementById('rastrear-localizacoes-body');
+  locBody.innerHTML = '';
+  if (!localizacoes.length) {
+    document.getElementById('rastrear-localizacoes-empty').classList.remove('hidden');
+    document.getElementById('rastrear-localizacoes-wrap').classList.add('hidden');
+  } else {
+    document.getElementById('rastrear-localizacoes-empty').classList.add('hidden');
+    document.getElementById('rastrear-localizacoes-wrap').classList.remove('hidden');
+    localizacoes.forEach(function (pt) {
+      var tr = document.createElement('tr');
+      var lat = pt.latitude;
+      var lng = pt.longitude;
+      var mapsUrl = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+      tr.innerHTML =
+        '<td style="white-space:nowrap">' + esc(formatarData(pt.timestamp)) + '</td>' +
+        '<td style="font-family:monospace">' + esc(String(lat)) + ', ' + esc(String(lng)) + '</td>' +
+        '<td>' + esc(fmtVel(pt.velocidade)) + '</td>' +
+        '<td><a class="btn btn-outline btn-sm" href="' + mapsUrl + '" target="_blank">🗺️ Abrir</a></td>';
+      locBody.appendChild(tr);
+    });
+  }
+
   document.getElementById('rastrear-result').classList.remove('hidden');
+}
+
+function registrarAbastecimento() {
+  var placa = document.getElementById('abast-placa').value.trim().toUpperCase();
+  var km = document.getElementById('abast-km').value.trim();
+  var litros = document.getElementById('abast-litros').value.trim();
+  var valor = document.getElementById('abast-valor').value.trim();
+  var dataHora = document.getElementById('abast-datahora').value;
+  if (!placa) { mostrarAlerta('msg-abastecimento', 'Informe a placa.', 'error'); return; }
+  if (!km || isNaN(Number(km)) || Number(km) < 0) { mostrarAlerta('msg-abastecimento', 'Quilometragem inválida.', 'error'); return; }
+  if (!litros || isNaN(Number(litros)) || Number(litros) <= 0) { mostrarAlerta('msg-abastecimento', 'Litros inválidos.', 'error'); return; }
+  if (!valor || isNaN(Number(valor)) || Number(valor) <= 0) { mostrarAlerta('msg-abastecimento', 'Valor inválido.', 'error'); return; }
+  esconderAlerta('msg-abastecimento');
+
+  callApi('registrarAbastecimento', {
+    placa: placa,
+    quilometragem: Number(km),
+    litros: Number(litros),
+    valor: Number(valor),
+    dataHora: dataHora ? new Date(dataHora).toISOString() : new Date().toISOString()
+  })
+    .then(function (res) {
+      if (!res.success) {
+        mostrarAlerta('msg-abastecimento', 'Erro: ' + (res.error || ''), 'error');
+        return;
+      }
+      mostrarAlerta('msg-abastecimento', '✅ Abastecimento registrado com sucesso.', 'success');
+      document.getElementById('abast-km').value = '';
+      document.getElementById('abast-litros').value = '';
+      document.getElementById('abast-valor').value = '';
+      document.getElementById('abast-datahora').value = '';
+      carregarAbastecimentos();
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-abastecimento', 'Erro: ' + (err.message || err), 'error');
+    });
+}
+
+function carregarAbastecimentos() {
+  var filtroPlaca = document.getElementById('abast-filtro-placa');
+  var placa = filtroPlaca ? filtroPlaca.value.trim().toUpperCase() : '';
+  callApi('listarAbastecimentos', { placa: placa })
+    .then(function (res) {
+      if (!res.success) {
+        mostrarAlerta('msg-abastecimento', 'Erro: ' + (res.error || ''), 'error');
+        return;
+      }
+      var itens = res.itens || [];
+      var body = document.getElementById('abast-body');
+      var emptyEl = document.getElementById('abast-empty');
+      var tableEl = document.getElementById('abast-table');
+      body.innerHTML = '';
+      if (!itens.length) {
+        emptyEl.classList.remove('hidden');
+        tableEl.classList.add('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      tableEl.classList.remove('hidden');
+      itens.forEach(function (it) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><code>' + esc(it.placa) + '</code></td>' +
+          '<td>' + esc(String(it.quilometragem)) + '</td>' +
+          '<td>' + esc(String(it.litros)) + '</td>' +
+          '<td>R$ ' + esc(Number(it.valor || 0).toFixed(2)) + '</td>' +
+          '<td style="white-space:nowrap">' + esc(formatarData(it.dataHora)) + '</td>';
+        body.appendChild(tr);
+      });
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-abastecimento', 'Erro: ' + (err.message || err), 'error');
+    });
 }
 
 // ─── Veículos ──────────────────────────────────────────────────

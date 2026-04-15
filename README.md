@@ -20,8 +20,10 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 
 ### Painel do Motorista
 - Formulário de pré-viagem: Nome, Placa, Modelo e Observações de Avaria
+- Registro obrigatório de quilometragem inicial e final da rota
 - Tela de rota ativa com data/hora de início registrada automaticamente
 - Rastreamento GPS periódico (intervalo configurável pelo supervisor)
+- Registro imediato de posição ao voltar para o app após bloqueio/desbloqueio da tela
 - Campo para registrar ocorrências/imprevistos durante a viagem
 - Botão de finalização com data/hora registrada automaticamente
 - Estado persistido em `localStorage` (motorista pode recarregar a página sem perder a rota)
@@ -33,6 +35,8 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
   - Botão de "Forçar Finalização" para encerrar rotas remotamente
 - **Veículos:** liberação/cadastro de veículos na frota, lista com status
 - **Configurações:** define o intervalo de registro GPS (1 – 30 minutos)
+- **Rastrear:** busca por placa com última posição + lista de localizações e links diretos para Google Maps
+- **Abastecimento:** aba para registrar e consultar quilometragem, litros, valor e data/hora
 - **Relatórios:** geração e download de CSV com todas as rotas (filtrável por período e placa), incluindo log GPS completo
 
 ---
@@ -120,10 +124,11 @@ O sistema cria automaticamente as seguintes abas na planilha:
 
 | Aba | Colunas |
 |---|---|
-| **Rotas** | ID, Nome_Motorista, Placa, Modelo, Obs_Inicial, Hora_Inicio, Lat_Inicio, Long_Inicio, Status, Obs_Viagem, Hora_Fim, Lat_Fim, Long_Fim |
+| **Rotas** | ID, Nome_Motorista, Placa, Modelo, Obs_Inicial, Hora_Inicio, Lat_Inicio, Long_Inicio, Status, Obs_Viagem, Hora_Fim, Lat_Fim, Long_Fim, Km_Inicio, Km_Fim |
 | **GPS_Log** | ID_Rota, Timestamp, Latitude, Longitude, Velocidade |
 | **Veiculos** | Placa, Modelo, Status |
 | **Config** | Chave, Valor |
+| **Abastecimentos** | Placa, Quilometragem, Litros, Valor, Data_Hora |
 
 ### Status dos Veículos
 - `Disponivel` — veículo livre
