@@ -310,9 +310,9 @@ function getMotoristas() {
   }
 }
 
-function validarMotorista(nome) {
+function validarMotorista(data) {
   try {
-    const nomeNorm = _normalizarNome(nome);
+    const nomeNorm = _normalizarNome(data && data.nome);
     if (!nomeNorm) return { success: false, error: 'Informe o nome do motorista.' };
     const motorista = _buscarMotoristaPorNome(nomeNorm);
     if (!motorista) {
@@ -516,7 +516,7 @@ function doPost(e) {
         result = getMotoristas();
         break;
       case 'validarMotorista':
-        result = validarMotorista(payload.nome);
+        result = validarMotorista(payload);
         break;
       case 'getConfig':
         result = getConfig();

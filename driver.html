@@ -733,7 +733,7 @@ function mostrarTelaRota() {
 
 // ─── Iniciar Rota ─────────────────────────────────────────────
 function iniciarRota() {
-  var nome   = (estado.nome || document.getElementById('nome').value).trim();
+  var nome   = (estado.nome || '').trim();
   var placa  = document.getElementById('placa').value.trim().toUpperCase();
   var modelo = document.getElementById('modelo').value.trim();
   var kmInicio = document.getElementById('km-inicio').value.trim();
