@@ -183,7 +183,14 @@ function forcarFinalizarRota(rotaId) {
         sheet.getRange(i + 1, 11).setValue(ts);
         sheet.getRange(i + 1, 12).setValue('');
         sheet.getRange(i + 1, 13).setValue('');
-        try { sheet.getRange(i + 1, 15).setValue(''); } catch (_) {}
+        // A coluna Km_Fim (15) só existe quando a planilha está atualizada;
+        // em abas legadas com menos colunas, ignoramos o erro e apenas
+        // registramos no log — a finalização principal já foi concluída.
+        try {
+          sheet.getRange(i + 1, 15).setValue('');
+        } catch (kmErr) {
+          try { Logger.log('forcarFinalizarRota: coluna Km_Fim indisponível: ' + kmErr.message); } catch (_) {}
+        }
         _atualizarStatusVeiculo(rows[i][2], 'Disponivel');
         return { success: true, timestamp: ts };
       }
