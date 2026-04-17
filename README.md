@@ -19,8 +19,10 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 ## ✨ Funcionalidades
 
 ### Painel do Motorista
+- Tela de login por nome (nome deve estar cadastrado pelo supervisor)
 - Formulário de pré-viagem: Nome, Placa, Modelo e Observações de Avaria
 - Registro obrigatório de quilometragem inicial e final da rota
+- Após login, o sistema verifica automaticamente se já existe rota ativa para o motorista e abre direto a tela de rota quando necessário
 - Tela de rota ativa com data/hora de início registrada automaticamente
 - Rastreamento GPS periódico (intervalo configurável pelo supervisor)
 - Registro imediato de posição ao voltar para o app após bloqueio/desbloqueio da tela (via `visibilitychange`, `focus` e `pageshow`)
@@ -36,6 +38,7 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
   - Expansão de detalhes com log GPS e link para Google Maps
   - Botão de "Forçar Finalização" para encerrar rotas remotamente
 - **Veículos:** liberação/cadastro de veículos na frota, lista com status e botão **Remover** (veículos em rota ativa são protegidos contra remoção)
+- **Motoristas:** cadastro de motoristas autorizados para login no painel do motorista
 - **Configurações:** define o intervalo de registro GPS (1 – 30 minutos) e a **retenção de dados** (7, 15, 30, 60, 90, 180 ou 365 dias) com botão "Limpar agora" e função `triggerLimpezaDiaria` para agendamento automático
 - **Rastrear:** busca por placa com última posição + lista de localizações e links diretos para Google Maps
 - **Abastecimento:** aba apenas de **consulta** (lista e filtro por placa) com botão **Baixar PDF**. O registro é feito pelo motorista no painel do motorista
@@ -129,6 +132,7 @@ O sistema cria automaticamente as seguintes abas na planilha:
 | **Rotas** | ID, Nome_Motorista, Placa, Modelo, Obs_Inicial, Hora_Inicio, Lat_Inicio, Long_Inicio, Status, Obs_Viagem, Hora_Fim, Lat_Fim, Long_Fim, Km_Inicio, Km_Fim |
 | **GPS_Log** | ID_Rota, Timestamp, Latitude, Longitude, Velocidade |
 | **Veiculos** | Placa, Modelo, Status |
+| **Motoristas** | Nome |
 | **Config** | Chave, Valor |
 | **Abastecimentos** | Placa, Quilometragem, Litros, Valor, Data_Hora |
 

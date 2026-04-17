@@ -549,6 +549,46 @@
 
   <div class="card">
     <div class="card-header">
+      <div>
+        <div class="card-title">👤 Cadastrar Motorista</div>
+        <div class="card-subtitle">Nome deve ser igual ao login usado no painel do motorista</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label" for="m-nome">Nome do Motorista *</label>
+        <input id="m-nome" type="text" class="form-control"
+               placeholder="Ex: João da Silva">
+      </div>
+      <div class="form-group" style="flex:0;display:flex;align-items:flex-end">
+        <button class="btn btn-primary" onclick="cadastrarMotorista()" style="width:auto;padding:10px 22px">
+          👤 Cadastrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🧑‍✈️ Motoristas Cadastrados</div>
+      <button class="btn btn-outline btn-sm" onclick="carregarMotoristas()">🔄 Atualizar</button>
+    </div>
+    <div id="motoristas-empty" class="empty hidden">
+      <div class="empty-icon">👤</div>
+      <div class="empty-text">Nenhum motorista cadastrado ainda.</div>
+    </div>
+    <div class="table-wrap">
+      <table id="tabela-motoristas">
+        <thead>
+          <tr><th>Nome</th></tr>
+        </thead>
+        <tbody id="tbody-motoristas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
       <div class="card-title">📋 Frota Cadastrada</div>
       <button class="btn btn-outline btn-sm" onclick="carregarVeiculos()">🔄 Atualizar</button>
     </div>
@@ -978,7 +1018,7 @@ function selecionarTab(nome) {
   if (idx >= 0) tabs[idx].classList.add('active');
   document.getElementById('panel-' + nome).classList.add('active');
 
-  if (nome === 'veiculos')   carregarVeiculos();
+  if (nome === 'veiculos') { carregarVeiculos(); carregarMotoristas(); }
   if (nome === 'dashboard')  carregarRotasAtivas();
   if (nome === 'abastecimento') carregarAbastecimentos();
 }
@@ -1506,6 +1546,55 @@ function carregarVeiculos() {
     .catch(function () {
       esconderEl('veiculos-loading');
       mostrarEl('veiculos-content');
+    });
+}
+
+function cadastrarMotorista() {
+  var nome = document.getElementById('m-nome').value.trim();
+  if (!nome) { mostrarAlerta('msg-veiculos', 'Informe o nome do motorista.', 'error'); return; }
+  esconderAlerta('msg-veiculos');
+  callApi('cadastrarMotorista', { nome: nome })
+    .then(function (res) {
+      if (res.success) {
+        mostrarAlerta('msg-veiculos', '✅ ' + (res.message || 'Motorista cadastrado.'), 'success');
+        document.getElementById('m-nome').value = '';
+        carregarMotoristas();
+      } else {
+        mostrarAlerta('msg-veiculos', 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-veiculos', 'Erro: ' + (err.message || err), 'error');
+    });
+}
+
+function carregarMotoristas() {
+  callApi('getMotoristas')
+    .then(function (res) {
+      if (!res.success) {
+        mostrarAlerta('msg-veiculos', 'Erro: ' + (res.error || ''), 'error');
+        return;
+      }
+      var motoristas = res.motoristas || [];
+      var tbody = document.getElementById('tbody-motoristas');
+      var emptyEl = document.getElementById('motoristas-empty');
+      var tableEl = document.getElementById('tabela-motoristas');
+      tbody.innerHTML = '';
+      if (motoristas.length === 0) {
+        emptyEl.classList.remove('hidden');
+        tableEl.classList.add('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      tableEl.classList.remove('hidden');
+      motoristas.forEach(function (m) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><strong>' + esc(m.nome) + '</strong></td>';
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-veiculos', 'Erro: ' + (err.message || err), 'error');
     });
 }
 
