@@ -563,7 +563,7 @@
       <div class="table-wrap">
         <table id="tabela-veiculos">
           <thead>
-            <tr><th>Placa</th><th>Modelo</th><th>Status</th></tr>
+            <tr><th>Placa</th><th>Modelo</th><th>Status</th><th>Ações</th></tr>
           </thead>
           <tbody id="tbody-veiculos"></tbody>
         </table>
@@ -688,46 +688,19 @@
   <div class="card">
     <div class="card-header">
       <div>
-        <div class="card-title">⛽ Registrar Abastecimento</div>
-        <div class="card-subtitle">Informe quilometragem, litros, valor e data/hora</div>
+        <div class="card-title">⛽ Abastecimentos Registrados</div>
+        <div class="card-subtitle">Somente consulta – o registro é feito pelo motorista no painel do motorista</div>
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="abast-placa">Placa</label>
-        <input id="abast-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="ABC-1234">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="carregarAbastecimentos()">🔄 Atualizar</button>
+        <button class="btn btn-primary btn-sm" onclick="baixarAbastecimentosPDF()">📄 Baixar PDF</button>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="abast-km">Quilometragem (km)</label>
-        <input id="abast-km" type="number" min="0" step="0.1" class="form-control" placeholder="12345.6">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="abast-litros">Litros</label>
-        <input id="abast-litros" type="number" min="0" step="0.01" class="form-control" placeholder="45.5">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="abast-valor">Valor (R$)</label>
-        <input id="abast-valor" type="number" min="0" step="0.01" class="form-control" placeholder="320.00">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="abast-datahora">Data/Hora</label>
-        <input id="abast-datahora" type="datetime-local" class="form-control">
-      </div>
-    </div>
-    <button class="btn btn-success" style="width:auto;padding:10px 22px" onclick="registrarAbastecimento()">
-      💾 &nbsp; Salvar Abastecimento
-    </button>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <div class="card-title">📋 Histórico de Abastecimentos</div>
-      <button class="btn btn-outline btn-sm" onclick="carregarAbastecimentos()">🔄 Atualizar</button>
     </div>
     <div class="form-row" style="margin-bottom:10px">
       <div class="form-group" style="max-width:240px">
         <label class="form-label" for="abast-filtro-placa">Filtrar por placa</label>
-        <input id="abast-filtro-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="Todas">
+        <input id="abast-filtro-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="Todas"
+               onkeydown="if(event.key==='Enter') carregarAbastecimentos()">
       </div>
     </div>
     <div id="abast-empty" class="empty hidden">
@@ -774,6 +747,26 @@
           <option value="30">A cada 30 minutos</option>
         </select>
         <button class="btn btn-primary" onclick="salvarConfig()">Salvar</button>
+      </div>
+    </div>
+
+    <div class="config-item">
+      <div>
+        <div class="config-label">Retenção de dados (limpeza automática)</div>
+        <div class="config-desc">Rotas finalizadas, logs GPS e abastecimentos mais antigos que esse período serão removidos. Rotas ativas nunca são apagadas.</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <select id="cfg-retencao" class="form-control" style="width:auto">
+          <option value="7">7 dias</option>
+          <option value="15">15 dias</option>
+          <option value="30" selected>30 dias</option>
+          <option value="60">60 dias</option>
+          <option value="90">90 dias</option>
+          <option value="180">180 dias</option>
+          <option value="365">365 dias</option>
+        </select>
+        <button class="btn btn-primary" onclick="salvarRetencao()">Salvar</button>
+        <button class="btn btn-danger" onclick="limparDadosAntigos()">🧹 Limpar agora</button>
       </div>
     </div>
 
@@ -1306,40 +1299,14 @@ function renderRastrearResult(res) {
 }
 
 function registrarAbastecimento() {
-  var placa = document.getElementById('abast-placa').value.trim().toUpperCase();
-  var km = document.getElementById('abast-km').value.trim();
-  var litros = document.getElementById('abast-litros').value.trim();
-  var valor = document.getElementById('abast-valor').value.trim();
-  var dataHora = document.getElementById('abast-datahora').value;
-  if (!placa) { mostrarAlerta('msg-abastecimento', 'Informe a placa.', 'error'); return; }
-  if (!km || isNaN(Number(km)) || Number(km) < 0) { mostrarAlerta('msg-abastecimento', 'Quilometragem inválida.', 'error'); return; }
-  if (!litros || isNaN(Number(litros)) || Number(litros) <= 0) { mostrarAlerta('msg-abastecimento', 'Litros inválidos.', 'error'); return; }
-  if (!valor || isNaN(Number(valor)) || Number(valor) <= 0) { mostrarAlerta('msg-abastecimento', 'Valor inválido.', 'error'); return; }
-  esconderAlerta('msg-abastecimento');
-
-  callApi('registrarAbastecimento', {
-    placa: placa,
-    quilometragem: Number(km),
-    litros: Number(litros),
-    valor: Number(valor),
-    dataHora: dataHora ? new Date(dataHora).toISOString() : new Date().toISOString()
-  })
-    .then(function (res) {
-      if (!res.success) {
-        mostrarAlerta('msg-abastecimento', 'Erro: ' + (res.error || ''), 'error');
-        return;
-      }
-      mostrarAlerta('msg-abastecimento', '✅ Abastecimento registrado com sucesso.', 'success');
-      document.getElementById('abast-km').value = '';
-      document.getElementById('abast-litros').value = '';
-      document.getElementById('abast-valor').value = '';
-      document.getElementById('abast-datahora').value = '';
-      carregarAbastecimentos();
-    })
-    .catch(function (err) {
-      mostrarAlerta('msg-abastecimento', 'Erro: ' + (err.message || err), 'error');
-    });
+  // O registro de abastecimento agora é feito pelo painel do motorista.
+  // Função mantida como no-op para compatibilidade; exibe aviso caso seja
+  // chamada inadvertidamente.
+  mostrarAlerta('msg-abastecimento',
+    'O registro de abastecimento é feito pelo painel do motorista.', 'error');
 }
+
+var _abastecimentosCache = [];
 
 function carregarAbastecimentos() {
   var filtroPlaca = document.getElementById('abast-filtro-placa');
@@ -1351,6 +1318,7 @@ function carregarAbastecimentos() {
         return;
       }
       var itens = res.itens || [];
+      _abastecimentosCache = itens;
       var body = document.getElementById('abast-body');
       var emptyEl = document.getElementById('abast-empty');
       var tableEl = document.getElementById('abast-table');
@@ -1378,6 +1346,72 @@ function carregarAbastecimentos() {
     });
 }
 
+function baixarAbastecimentosPDF() {
+  var itens = _abastecimentosCache || [];
+  if (!itens.length) {
+    mostrarAlerta('msg-abastecimento', 'Nenhum abastecimento para gerar PDF. Clique em Atualizar primeiro.', 'error');
+    return;
+  }
+  var filtroPlaca = document.getElementById('abast-filtro-placa');
+  var placa = filtroPlaca ? filtroPlaca.value.trim().toUpperCase() : '';
+  var totalLitros = 0, totalValor = 0;
+  itens.forEach(function (it) {
+    totalLitros += Number(it.litros || 0);
+    totalValor  += Number(it.valor  || 0);
+  });
+
+  var rows = itens.map(function (it) {
+    return '<tr>' +
+      '<td><strong>' + esc(it.placa) + '</strong></td>' +
+      '<td>' + esc(String(it.quilometragem)) + '</td>' +
+      '<td>' + esc(Number(it.litros || 0).toFixed(2)) + '</td>' +
+      '<td>R$ ' + esc(Number(it.valor || 0).toFixed(2)) + '</td>' +
+      '<td>' + esc(formatarData(it.dataHora)) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  var titulo = placa ? 'Abastecimentos – Placa ' + esc(placa) : 'Abastecimentos – Todos os Veículos';
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">' +
+    '<title>Relatório de Abastecimentos</title>' +
+    '<style>' +
+    'body{font-family:Arial,sans-serif;font-size:12px;color:#222;margin:0;padding:0}' +
+    '.report-header{background:#0D47A1;color:#fff;padding:18px 24px}' +
+    '.report-header h1{margin:0;font-size:18px}' +
+    '.report-header p{margin:4px 0 0;font-size:11px;opacity:.85}' +
+    '.report-body{padding:20px 24px}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:20px}' +
+    'th{background:#1565C0;color:#fff;padding:7px 8px;text-align:left;font-size:11px}' +
+    'td{padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}' +
+    'tr:nth-child(even) td{background:#F0F5FF}' +
+    '.totais{margin-top:10px;padding:10px;background:#F5F5F5;border-left:4px solid #0D47A1;font-size:13px}' +
+    '@media print{.no-print{display:none}}' +
+    '</style></head><body>' +
+    '<div class="report-header"><h1>' + titulo + '</h1>' +
+    '<p>Gerado em: ' + esc(new Date().toLocaleString('pt-BR')) + ' &nbsp;|&nbsp; ' + itens.length + ' registro(s)</p>' +
+    '</div>' +
+    '<div class="report-body">' +
+    '<table><thead><tr>' +
+    '<th>Placa</th><th>KM</th><th>Litros</th><th>Valor</th><th>Data/Hora</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="totais"><strong>Totais:</strong> ' +
+    itens.length + ' abastecimento(s) &nbsp;|&nbsp; ' +
+    totalLitros.toFixed(2) + ' L &nbsp;|&nbsp; R$ ' + totalValor.toFixed(2) +
+    '</div>' +
+    '<div class="no-print" style="margin-top:20px;text-align:center">' +
+    '<button onclick="window.print()" style="padding:10px 20px;background:#1565C0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px">🖨 Imprimir / Salvar como PDF</button>' +
+    '</div>' +
+    '</div></body></html>';
+
+  var w = window.open('', '_blank');
+  if (!w) {
+    mostrarAlerta('msg-abastecimento', 'Não foi possível abrir a janela de impressão. Verifique bloqueador de pop-ups.', 'error');
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
 // ─── Veículos ──────────────────────────────────────────────────
 function liberarVeiculo() {
   var placa  = document.getElementById('v-placa').value.trim().toUpperCase();
@@ -1402,6 +1436,29 @@ function liberarVeiculo() {
     .catch(function (err) {
       mostrarAlerta('msg-veiculos', 'Erro: ' + (err.message || err), 'error');
     });
+}
+
+function removerVeiculo(placa) {
+  mostrarConfirm(
+    'Remover veículo',
+    'Remover o veículo ' + placa + ' da frota cadastrada? Esta ação não pode ser desfeita.',
+    function () {
+      callApi('removerVeiculo', { placa: placa })
+        .then(function (res) {
+          if (res.success) {
+            mostrarAlerta('msg-veiculos', '✅ ' + (res.message || 'Veículo removido.'), 'success');
+            carregarVeiculos();
+          } else {
+            mostrarAlerta('msg-veiculos', 'Erro: ' + (res.error || ''), 'error');
+          }
+        })
+        .catch(function (err) {
+          mostrarAlerta('msg-veiculos', 'Erro: ' + (err.message || err), 'error');
+        });
+    },
+    'Remover',
+    'btn-danger'
+  );
 }
 
 function carregarVeiculos() {
@@ -1431,11 +1488,18 @@ function carregarVeiculos() {
                          v.status === 'Finalizado'   ? 'badge-finalizado'  : 'badge-disponivel';
         var statusLabel = v.status === 'Em_Transito' ? 'Em Trânsito' :
                           v.status === 'Finalizado'   ? 'Finalizado'  : 'Disponível';
+        var emRota = v.status === 'Em_Transito';
+        var btnRemover = emRota
+          ? '<button class="btn btn-outline btn-sm" disabled title="Encerre a rota antes de remover">🗑 Remover</button>'
+          : '<button class="btn btn-danger btn-sm" onclick="removerVeiculo(\'' +
+            esc(String(v.placa).replace(/\\/g, '\\\\').replace(/'/g, "\\'")) +
+            '\')">🗑 Remover</button>';
         var tr = document.createElement('tr');
         tr.innerHTML =
           '<td><code>' + esc(v.placa) + '</code></td>' +
           '<td>' + esc(v.modelo) + '</td>' +
-          '<td><span class="badge ' + badgeClass + '">' + statusLabel + '</span></td>';
+          '<td><span class="badge ' + badgeClass + '">' + statusLabel + '</span></td>' +
+          '<td>' + btnRemover + '</td>';
         tbody.appendChild(tr);
       });
     })
@@ -1449,9 +1513,12 @@ function carregarVeiculos() {
 function carregarConfig() {
   callApi('getConfig')
     .then(function (res) {
-      if (res && res.success && res.config && res.config.Intervalo_GPS) {
-        var sel = document.getElementById('cfg-intervalo');
-        sel.value = String(res.config.Intervalo_GPS);
+      if (res && res.success && res.config) {
+        if (res.config.Intervalo_GPS) {
+          document.getElementById('cfg-intervalo').value = String(res.config.Intervalo_GPS);
+        }
+        var selRet = document.getElementById('cfg-retencao');
+        if (selRet) selRet.value = String(res.config.Retencao_Dias || '30');
       }
     });
 }
@@ -1469,6 +1536,48 @@ function salvarConfig() {
     .catch(function (err) {
       mostrarAlerta('msg-config', 'Erro: ' + (err.message || err), 'error');
     });
+}
+
+function salvarRetencao() {
+  var dias = document.getElementById('cfg-retencao').value;
+  callApi('setConfig', { retencaoDias: dias })
+    .then(function (res) {
+      if (res.success) {
+        mostrarAlerta('msg-config', '✅ Retenção definida para ' + dias + ' dias.', 'success');
+      } else {
+        mostrarAlerta('msg-config', 'Erro: ' + (res.error || ''), 'error');
+      }
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-config', 'Erro: ' + (err.message || err), 'error');
+    });
+}
+
+function limparDadosAntigos() {
+  var dias = document.getElementById('cfg-retencao').value;
+  mostrarConfirm(
+    'Limpar dados antigos',
+    'Remover rotas finalizadas, logs GPS e abastecimentos com mais de ' + dias + ' dias? Rotas ativas não serão apagadas.',
+    function () {
+      callApi('limparDadosAntigos', { dias: Number(dias) })
+        .then(function (res) {
+          if (res.success) {
+            var r = res.removidos || {};
+            mostrarAlerta('msg-config',
+              '✅ Limpeza concluída: ' + (r.rotas || 0) + ' rota(s), ' +
+              (r.gps || 0) + ' ponto(s) GPS, ' + (r.abastecimentos || 0) + ' abastecimento(s) removidos.',
+              'success');
+          } else {
+            mostrarAlerta('msg-config', 'Erro: ' + (res.error || ''), 'error');
+          }
+        })
+        .catch(function (err) {
+          mostrarAlerta('msg-config', 'Erro: ' + (err.message || err), 'error');
+        });
+    },
+    'Limpar',
+    'btn-danger'
+  );
 }
 
 // ─── Alterar Senha ─────────────────────────────────────────────
@@ -1670,7 +1779,11 @@ function esc(str) {
 }
 
 function fmtVel(v) {
-  return (v !== '' && v !== undefined && v !== null) ? String(v) + ' m/s' : '–';
+  if (v === '' || v === undefined || v === null) return '–';
+  var num = Number(v);
+  if (isNaN(num)) return String(v);
+  // A velocidade é registrada pelo painel do motorista em km/h.
+  return num.toFixed(1) + ' km/h';
 }
 </script>
 </body>

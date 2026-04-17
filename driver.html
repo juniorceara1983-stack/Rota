@@ -310,6 +310,10 @@
     <button id="btn-iniciar" class="btn btn-primary" onclick="iniciarRota()">
       🟢 &nbsp; Iniciar Rota
     </button>
+
+    <button class="btn btn-outline" style="margin-top:10px" onclick="mostrarTelaAbastecimento()">
+      ⛽ &nbsp; Registrar Abastecimento
+    </button>
   </div>
 </div>
 
@@ -400,6 +404,65 @@
     <button id="btn-finalizar" class="btn btn-danger" onclick="confirmarFinalizar()"
             style="margin-top:4px">
       🔴 &nbsp; Finalizar Rota
+    </button>
+
+    <button class="btn btn-outline" style="margin-top:10px" onclick="mostrarTelaAbastecimento()">
+      ⛽ &nbsp; Registrar Abastecimento
+    </button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     TELA – ABASTECIMENTO (motorista)
+     ══════════════════════════════════════════════════════════ -->
+<div id="tela-abastecimento" class="screen">
+  <div class="header">
+    <div class="header-icon">⛽</div>
+    <div>
+      <div class="header-title">Registrar Abastecimento</div>
+      <div class="header-sub">Painel do Motorista</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="err-abast" class="alert alert-error hidden"></div>
+    <div id="ok-abast" class="alert alert-success hidden"></div>
+
+    <div class="card">
+      <div class="card-title">Dados do Abastecimento</div>
+      <div class="form-group">
+        <label class="form-label" for="ab-placa">Placa *</label>
+        <input id="ab-placa" type="text" class="form-control"
+               placeholder="AAA-0000" style="text-transform:uppercase" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ab-km">Quilometragem (km) *</label>
+        <input id="ab-km" type="number" min="0" step="0.1" class="form-control"
+               placeholder="Ex: 12345.6" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ab-litros">Litros *</label>
+        <input id="ab-litros" type="number" min="0" step="0.01" class="form-control"
+               placeholder="Ex: 45.5" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ab-valor">Valor total (R$) *</label>
+        <input id="ab-valor" type="number" min="0" step="0.01" class="form-control"
+               placeholder="Ex: 320.00" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="ab-datahora">Data/Hora</label>
+        <input id="ab-datahora" type="datetime-local" class="form-control">
+        <small style="color:var(--muted);font-size:12px">Deixe em branco para usar a data e hora atuais.</small>
+      </div>
+    </div>
+
+    <button id="btn-salvar-abast" class="btn btn-primary" onclick="salvarAbastecimento()">
+      💾 &nbsp; Salvar Abastecimento
+    </button>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="voltarDeAbastecimento()">
+      ⬅ &nbsp; Voltar
     </button>
   </div>
 </div>
@@ -511,6 +574,12 @@ document.addEventListener('visibilitychange', function () {
   }
 });
 window.addEventListener('focus', function () {
+  if (estado.rotaId) enviarPosicaoAoRetomar();
+});
+// `pageshow` é disparado ao retornar de BFCache (tela bloqueada/reativada
+// em muitos dispositivos móveis) — garantir envio de coordenadas
+// também nessa transição.
+window.addEventListener('pageshow', function () {
   if (estado.rotaId) enviarPosicaoAoRetomar();
 });
 
@@ -687,8 +756,7 @@ function enviarPosicaoGPS() {
           rotaId:     estado.rotaId,
           latitude:   pos.coords.latitude,
           longitude:  pos.coords.longitude,
-          velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
-                        ? pos.coords.speed : '',
+          velocidade: _speedKmh(pos.coords.speed),
           timestamp:  new Date().toISOString()
         }).catch(function () {});
       }
@@ -708,8 +776,7 @@ function enviarPosicaoGPS() {
               rotaId:     estado.rotaId,
               latitude:   pos.coords.latitude,
               longitude:  pos.coords.longitude,
-              velocidade: (pos.coords.speed !== null && pos.coords.speed !== undefined)
-                            ? pos.coords.speed : '',
+              velocidade: _speedKmh(pos.coords.speed),
               timestamp:  new Date().toISOString()
             }).catch(function () {});
           }
@@ -869,6 +936,69 @@ function _finalizarRota() {
   }
 }
 
+// ─── Abastecimento ────────────────────────────────────────────
+var telaAnteriorAbast = 'tela-registro';
+
+function mostrarTelaAbastecimento() {
+  telaAnteriorAbast = estado.rotaId ? 'tela-rota' : 'tela-registro';
+  esconderErro(document.getElementById('err-abast'));
+  esconderErro(document.getElementById('ok-abast'));
+  // Pré-preenche placa se há rota ativa.
+  var placaEl = document.getElementById('ab-placa');
+  if (estado.placa) placaEl.value = estado.placa;
+  mostrarTela('tela-abastecimento');
+}
+
+function voltarDeAbastecimento() {
+  mostrarTela(telaAnteriorAbast || 'tela-registro');
+}
+
+function salvarAbastecimento() {
+  var errEl = document.getElementById('err-abast');
+  var okEl  = document.getElementById('ok-abast');
+  esconderErro(errEl);
+  esconderErro(okEl);
+
+  var placa    = (document.getElementById('ab-placa').value || '').trim().toUpperCase();
+  var km       = document.getElementById('ab-km').value.trim();
+  var litros   = document.getElementById('ab-litros').value.trim();
+  var valor    = document.getElementById('ab-valor').value.trim();
+  var dataHora = document.getElementById('ab-datahora').value;
+
+  if (!placa)                                                    { mostrarErro(errEl, 'Informe a placa do veículo.'); return; }
+  if (!km   || isNaN(Number(km))   || Number(km)   < 0)          { mostrarErro(errEl, 'Quilometragem inválida.'); return; }
+  if (!litros || isNaN(Number(litros)) || Number(litros) <= 0)   { mostrarErro(errEl, 'Litros inválidos.'); return; }
+  if (!valor || isNaN(Number(valor)) || Number(valor) <= 0)      { mostrarErro(errEl, 'Valor inválido.'); return; }
+
+  var btn = document.getElementById('btn-salvar-abast');
+  setBtnLoading(btn, true, '<span class="spinner"></span> Salvando…');
+
+  callApi('registrarAbastecimento', {
+    placa:         placa,
+    quilometragem: Number(km),
+    litros:        Number(litros),
+    valor:         Number(valor),
+    dataHora:      dataHora ? new Date(dataHora).toISOString() : new Date().toISOString()
+  })
+    .then(function (res) {
+      setBtnLoading(btn, false, '💾 &nbsp; Salvar Abastecimento');
+      if (!res.success) {
+        mostrarErro(errEl, 'Erro: ' + (res.error || 'desconhecido'));
+        return;
+      }
+      okEl.textContent = '✅ Abastecimento registrado com sucesso.';
+      okEl.classList.remove('hidden');
+      document.getElementById('ab-km').value = '';
+      document.getElementById('ab-litros').value = '';
+      document.getElementById('ab-valor').value = '';
+      document.getElementById('ab-datahora').value = '';
+    })
+    .catch(function (err) {
+      setBtnLoading(btn, false, '💾 &nbsp; Salvar Abastecimento');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    });
+}
+
 // ─── Nova Rota ────────────────────────────────────────────────
 function novaRota() {
   var intervaloSalvo = estado.intervalGPS;
@@ -934,6 +1064,13 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// Converte speed do Geolocation API (m/s) para km/h, arredondado a 1 casa.
+// Retorna '' se indisponível.
+function _speedKmh(speedMs) {
+  if (speedMs === null || speedMs === undefined || isNaN(speedMs) || speedMs < 0) return '';
+  return Math.round(speedMs * 3.6 * 10) / 10;
 }
 </script>
 </body>

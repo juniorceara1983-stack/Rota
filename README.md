@@ -23,9 +23,11 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 - Registro obrigatório de quilometragem inicial e final da rota
 - Tela de rota ativa com data/hora de início registrada automaticamente
 - Rastreamento GPS periódico (intervalo configurável pelo supervisor)
-- Registro imediato de posição ao voltar para o app após bloqueio/desbloqueio da tela
+- Registro imediato de posição ao voltar para o app após bloqueio/desbloqueio da tela (via `visibilitychange`, `focus` e `pageshow`)
+- Velocidade registrada em **km/h** (convertida do valor m/s retornado pela API de Geolocalização)
 - Campo para registrar ocorrências/imprevistos durante a viagem
 - Botão de finalização com data/hora registrada automaticamente
+- Tela dedicada de **Registro de Abastecimento** (placa, KM, litros, valor e data/hora) acessível a partir do cadastro inicial ou durante uma rota ativa
 - Estado persistido em `localStorage` (motorista pode recarregar a página sem perder a rota)
 
 ### Painel do Supervisor
@@ -33,10 +35,10 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
   - Nome, placa, modelo, horário de início, observações
   - Expansão de detalhes com log GPS e link para Google Maps
   - Botão de "Forçar Finalização" para encerrar rotas remotamente
-- **Veículos:** liberação/cadastro de veículos na frota, lista com status
-- **Configurações:** define o intervalo de registro GPS (1 – 30 minutos)
+- **Veículos:** liberação/cadastro de veículos na frota, lista com status e botão **Remover** (veículos em rota ativa são protegidos contra remoção)
+- **Configurações:** define o intervalo de registro GPS (1 – 30 minutos) e a **retenção de dados** (7, 15, 30, 60, 90, 180 ou 365 dias) com botão "Limpar agora" e função `triggerLimpezaDiaria` para agendamento automático
 - **Rastrear:** busca por placa com última posição + lista de localizações e links diretos para Google Maps
-- **Abastecimento:** aba para registrar e consultar quilometragem, litros, valor e data/hora
+- **Abastecimento:** aba apenas de **consulta** (lista e filtro por placa) com botão **Baixar PDF**. O registro é feito pelo motorista no painel do motorista
 - **Relatórios:** geração e download de CSV com todas as rotas (filtrável por período e placa), incluindo log GPS completo
 
 ---

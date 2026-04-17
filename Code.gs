@@ -170,12 +170,28 @@ function finalizarRota(data) {
 
 // ── Forçar Finalização (pelo supervisor) ─────────────────────
 function forcarFinalizarRota(rotaId) {
-  return finalizarRota({
-    rotaId:    rotaId,
-    latitude:  '',
-    longitude: '',
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const sheet = getOrCreateSheet(SHEET_ROTAS);
+    _ensureRotasColumns(sheet);
+    const rows  = sheet.getDataRange().getValues();
+    const ts    = new Date().toISOString();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === rotaId) {
+        // Só atualiza colunas que já existem, evitando erros em abas com
+        // número reduzido de colunas.
+        sheet.getRange(i + 1,  9).setValue('Finalizado');
+        sheet.getRange(i + 1, 11).setValue(ts);
+        sheet.getRange(i + 1, 12).setValue('');
+        sheet.getRange(i + 1, 13).setValue('');
+        try { sheet.getRange(i + 1, 15).setValue(''); } catch (_) {}
+        _atualizarStatusVeiculo(rows[i][2], 'Disponivel');
+        return { success: true, timestamp: ts };
+      }
+    }
+    return { success: false, error: 'Rota não encontrada (id=' + rotaId + ').' };
+  } catch (err) {
+    return { success: false, error: 'Falha ao forçar finalização: ' + err.message };
+  }
 }
 
 // ── Liberar Veículo ──────────────────────────────────────────
@@ -249,6 +265,7 @@ function getConfig() {
       config[rows[i][0]] = rows[i][1];
     }
     if (!config['Intervalo_GPS']) config['Intervalo_GPS'] = '10';
+    if (!config['Retencao_Dias']) config['Retencao_Dias'] = '30';
     return { success: true, config: config };
   } catch (err) {
     return { success: false, error: err.message };
@@ -259,13 +276,20 @@ function setConfig(data) {
   try {
     const sheet = getOrCreateSheet(SHEET_CONFIG);
     const rows  = sheet.getDataRange().getValues();
+    const updates = {};
+    if (data.intervaloGPS !== undefined) updates['Intervalo_GPS'] = String(data.intervaloGPS);
+    if (data.retencaoDias !== undefined) updates['Retencao_Dias'] = String(data.retencaoDias);
+    const pendentes = Object.assign({}, updates);
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === 'Intervalo_GPS') {
-        sheet.getRange(i + 1, 2).setValue(String(data.intervaloGPS));
-        return { success: true };
+      const chave = rows[i][0];
+      if (updates[chave] !== undefined) {
+        sheet.getRange(i + 1, 2).setValue(updates[chave]);
+        delete pendentes[chave];
       }
     }
-    sheet.appendRow(['Intervalo_GPS', String(data.intervaloGPS)]);
+    Object.keys(pendentes).forEach(function (k) {
+      sheet.appendRow([k, pendentes[k]]);
+    });
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -438,6 +462,12 @@ function doPost(e) {
         break;
       case 'verificarSenha':
         result = verificarSenha(payload.senha);
+        break;
+      case 'removerVeiculo':
+        result = removerVeiculo(payload.placa);
+        break;
+      case 'limparDadosAntigos':
+        result = limparDadosAntigos(payload.dias);
         break;
       case 'alterarSenha':
         result = alterarSenha(payload);
@@ -748,6 +778,103 @@ function listarAbastecimentos(filtros) {
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+// ── Remover Veículo da frota ─────────────────────────────────
+function removerVeiculo(placa) {
+  try {
+    const placaUp = String(placa || '').toUpperCase().trim();
+    if (!placaUp) return { success: false, error: 'Placa não informada.' };
+
+    // Impede remoção de veículo em rota ativa.
+    const rotaRows = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
+    for (let i = 1; i < rotaRows.length; i++) {
+      if (String(rotaRows[i][2]).toUpperCase() === placaUp && rotaRows[i][8] === 'Em_Transito') {
+        return { success: false, error: 'Veículo está em rota ativa. Encerre a rota antes de remover.' };
+      }
+    }
+
+    const sheet = getOrCreateSheet(SHEET_VEICULOS);
+    const rows  = sheet.getDataRange().getValues();
+    for (let i = rows.length - 1; i >= 1; i--) {
+      if (String(rows[i][0]).toUpperCase() === placaUp) {
+        sheet.deleteRow(i + 1);
+        return { success: true, message: 'Veículo ' + placaUp + ' removido.' };
+      }
+    }
+    return { success: false, error: 'Veículo ' + placaUp + ' não encontrado.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ── Limpar Dados Antigos ─────────────────────────────────────
+// Remove rotas finalizadas, logs GPS e abastecimentos mais antigos que
+// `dias` (padrão: valor em Config.Retencao_Dias ou 30). Rotas ativas
+// (Em_Transito) nunca são removidas. Pode ser disparado manualmente
+// pelo supervisor ou por um time-driven trigger diário.
+function limparDadosAntigos(dias) {
+  try {
+    let diasNum = Number(dias);
+    if (!diasNum || diasNum <= 0) {
+      const cfg = getConfig();
+      diasNum = Number((cfg.config && cfg.config.Retencao_Dias) || 30);
+    }
+    if (!diasNum || diasNum <= 0) diasNum = 30;
+
+    const limiteMs = Date.now() - diasNum * 24 * 60 * 60 * 1000;
+
+    const resumo = { rotas: 0, gps: 0, abastecimentos: 0 };
+
+    // Coleta IDs de rotas antigas e finalizadas a serem removidas.
+    const rotaSheet = getOrCreateSheet(SHEET_ROTAS);
+    const rotaRows  = rotaSheet.getDataRange().getValues();
+    const idsRemovidos = {};
+    for (let i = rotaRows.length - 1; i >= 1; i--) {
+      const status = rotaRows[i][8];
+      if (status === 'Em_Transito') continue;
+      const refIso = rotaRows[i][10] || rotaRows[i][5]; // Hora_Fim ou Hora_Inicio
+      const ts = refIso ? new Date(refIso).getTime() : 0;
+      if (ts && ts < limiteMs) {
+        idsRemovidos[String(rotaRows[i][0])] = true;
+        rotaSheet.deleteRow(i + 1);
+        resumo.rotas++;
+      }
+    }
+
+    // Remove pontos GPS de rotas removidas ou cujos timestamps sejam antigos.
+    const gpsSheet = getOrCreateSheet(SHEET_GPS);
+    const gpsRows  = gpsSheet.getDataRange().getValues();
+    for (let i = gpsRows.length - 1; i >= 1; i--) {
+      const rid = String(gpsRows[i][0]);
+      const ts  = gpsRows[i][1] ? new Date(gpsRows[i][1]).getTime() : 0;
+      if (idsRemovidos[rid] || (ts && ts < limiteMs)) {
+        gpsSheet.deleteRow(i + 1);
+        resumo.gps++;
+      }
+    }
+
+    // Remove abastecimentos antigos.
+    const abastSheet = getOrCreateSheet(SHEET_ABAST);
+    const abastRows  = abastSheet.getDataRange().getValues();
+    for (let i = abastRows.length - 1; i >= 1; i--) {
+      const ts = abastRows[i][4] ? new Date(abastRows[i][4]).getTime() : 0;
+      if (ts && ts < limiteMs) {
+        abastSheet.deleteRow(i + 1);
+        resumo.abastecimentos++;
+      }
+    }
+
+    return { success: true, dias: diasNum, removidos: resumo };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// Trigger diário opcional: configurar em Apps Script > Triggers para
+// rodar uma vez por dia chamando esta função.
+function triggerLimpezaDiaria() {
+  return limparDadosAntigos();
 }
 
 function _ensureRotasColumns(sheet) {
