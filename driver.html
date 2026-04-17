@@ -213,6 +213,29 @@
 
     .hidden { display: none !important; }
 
+    /* ── Login ── */
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 430px;
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: 0 12px 34px rgba(0,0,0,.22);
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .login-icon  { font-size: 44px; margin-bottom: 10px; }
+    .login-title { font-size: 21px; font-weight: 700; color: var(--primary-dark); margin-bottom: 4px; }
+    .login-sub   { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+    .login-card .form-group { text-align: left; }
+
     /* ── Modal de Confirmação ── */
     .modal-overlay {
       position: fixed; inset: 0;
@@ -256,9 +279,32 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
+     LOGIN DO MOTORISTA
+     ══════════════════════════════════════════════════════════ -->
+<div id="tela-login" class="screen active">
+  <div class="login-screen">
+    <div class="login-card">
+      <div class="login-icon">👤</div>
+      <div class="login-title">Painel do Motorista</div>
+      <div class="login-sub">Informe o nome cadastrado pelo supervisor</div>
+      <div id="err-login" class="alert alert-error hidden" style="text-align:left"></div>
+      <div class="form-group">
+        <label class="form-label" for="login-nome">Nome Completo *</label>
+        <input id="login-nome" type="text" class="form-control"
+               placeholder="Seu nome completo" autocomplete="name"
+               onkeydown="if(event.key==='Enter') fazerLoginMotorista()">
+      </div>
+      <button id="btn-login" class="btn btn-primary" onclick="fazerLoginMotorista()">
+        🔓 &nbsp; Entrar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      TELA 1 – REGISTRO
      ══════════════════════════════════════════════════════════ -->
-<div id="tela-registro" class="screen active">
+<div id="tela-registro" class="screen">
   <div class="header">
     <div class="header-icon">🚗</div>
     <div>
@@ -529,32 +575,104 @@ var estado = {
 
 // ─── Inicialização ────────────────────────────────────────────
 window.onload = function () {
-  var saved = localStorage.getItem('rotaAtiva');
-  if (saved) {
-    try {
-      var r = JSON.parse(saved);
-      if (r && r.rotaId) {
-        estado.rotaId        = r.rotaId;
-        estado.nome          = r.nome          || '';
-        estado.placa         = r.placa         || '';
-        estado.modelo        = r.modelo        || '';
-        estado.kmInicio      = r.kmInicio      || '';
-        estado.obsInicial    = r.obsInicial    || '';
-        estado.horaInicio    = r.horaInicio    || null;
-        estado.intervalGPS   = r.intervalGPS   || 10;
-        estado.observacoes   = r.observacoes   || [];
-        estado.ultimaGpsTsMs = r.ultimaGpsTsMs || 0;
-        mostrarTelaRota();
-        return;
-      }
-    } catch (_) {}
-  }
-
   callApi('getConfig')
     .then(function (res) {
       if (res && res.success && res.config && res.config.Intervalo_GPS) {
         estado.intervalGPS = parseInt(res.config.Intervalo_GPS, 10) || 10;
       }
+    });
+
+  var nomeSessao = (sessionStorage.getItem('motoristaAuthNome') || '').trim();
+  if (nomeSessao) {
+    callApi('validarMotorista', { nome: nomeSessao })
+      .then(function (res) {
+        if (res && res.success) {
+          _concluirLoginMotorista(res.nome || nomeSessao, true);
+        } else {
+          sessionStorage.removeItem('motoristaAuthNome');
+          mostrarTela('tela-login');
+        }
+      })
+      .catch(function () {
+        sessionStorage.removeItem('motoristaAuthNome');
+        mostrarTela('tela-login');
+      });
+  } else {
+    mostrarTela('tela-login');
+  }
+};
+
+function fazerLoginMotorista() {
+  var nome = document.getElementById('login-nome').value.trim();
+  var errEl = document.getElementById('err-login');
+  var btn = document.getElementById('btn-login');
+  if (!nome) { mostrarErro(errEl, 'Informe seu nome completo.'); return; }
+  esconderErro(errEl);
+  setBtnLoading(btn, true, '<span class="spinner"></span> Verificando…');
+  callApi('validarMotorista', { nome: nome })
+    .then(function (res) {
+      setBtnLoading(btn, false, '🔓 &nbsp; Entrar');
+      if (!res || !res.success) {
+        mostrarErro(errEl, (res && res.error) || 'Motorista não autorizado.');
+        return;
+      }
+      _concluirLoginMotorista(res.nome || nome, false);
+    })
+    .catch(function (err) {
+      setBtnLoading(btn, false, '🔓 &nbsp; Entrar');
+      mostrarErro(errEl, 'Erro de comunicação: ' + (err.message || err));
+    });
+}
+
+function _concluirLoginMotorista(nome, silencioso) {
+  estado.nome = (nome || '').trim();
+  document.getElementById('login-nome').value = estado.nome;
+  document.getElementById('nome').value = estado.nome;
+  document.getElementById('nome').readOnly = true;
+  esconderErro(document.getElementById('err-login'));
+  sessionStorage.setItem('motoristaAuthNome', estado.nome);
+
+  callApi('buscarRotaAtivaMotorista', { nome: estado.nome })
+    .then(function (res) {
+      if (res && res.success && res.rota) {
+        var r = res.rota;
+        estado.rotaId        = r.id;
+        estado.nome          = r.nome;
+        estado.placa         = r.placa;
+        estado.modelo        = r.modelo;
+        estado.kmInicio      = r.kmInicio || '';
+        estado.obsInicial    = r.obsInicial;
+        estado.horaInicio    = r.horaInicio;
+        estado.observacoes   = [];
+        estado.ultimaGpsTsMs = 0;
+        salvarEstado();
+        mostrarTelaRota();
+        return;
+      }
+      localStorage.removeItem('rotaAtiva');
+      estado.rotaId = null;
+      estado.placa = '';
+      estado.modelo = '';
+      estado.kmInicio = '';
+      estado.obsInicial = '';
+      estado.horaInicio = null;
+      estado.observacoes = [];
+      estado.ultimaGpsTsMs = 0;
+      document.getElementById('placa').value = '';
+      document.getElementById('modelo').value = '';
+      document.getElementById('km-inicio').value = '';
+      document.getElementById('obs-inicial').value = '';
+      esconderErro(document.getElementById('err-registro'));
+      mostrarTela('tela-registro');
+    })
+    .catch(function (err) {
+      if (silencioso) {
+        sessionStorage.removeItem('motoristaAuthNome');
+        mostrarTela('tela-login');
+        return;
+      }
+      mostrarErro(document.getElementById('err-login'), 'Erro de comunicação: ' + (err.message || err));
+      mostrarTela('tela-login');
     });
 };
 
@@ -615,7 +733,7 @@ function mostrarTelaRota() {
 
 // ─── Iniciar Rota ─────────────────────────────────────────────
 function iniciarRota() {
-  var nome   = document.getElementById('nome').value.trim();
+  var nome   = (estado.nome || document.getElementById('nome').value).trim();
   var placa  = document.getElementById('placa').value.trim().toUpperCase();
   var modelo = document.getElementById('modelo').value.trim();
   var kmInicio = document.getElementById('km-inicio').value.trim();
@@ -634,33 +752,7 @@ function iniciarRota() {
   var btn = document.getElementById('btn-iniciar');
   setBtnLoading(btn, true, '<span class="spinner"></span> Verificando…');
 
-  // Verificar se já existe rota ativa para este motorista
-  callApi('buscarRotaAtivaMotorista', { nome: nome })
-    .then(function (res) {
-      if (res && res.success && res.rota) {
-        // Rota ativa encontrada – restaurar estado e ir para tela de rota
-        var r = res.rota;
-        estado.rotaId        = r.id;
-        estado.nome          = r.nome;
-        estado.placa         = r.placa;
-        estado.modelo        = r.modelo;
-        estado.kmInicio      = r.kmInicio || '';
-        estado.obsInicial    = r.obsInicial;
-        estado.horaInicio    = r.horaInicio;
-        estado.observacoes   = [];
-        estado.ultimaGpsTsMs = 0;
-        setBtnLoading(btn, false, '🟢 &nbsp; Iniciar Rota');
-        salvarEstado();
-        mostrarTelaRota();
-        return;
-      }
-      // Sem rota ativa – validar veículo e iniciar
-      _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl);
-    })
-    .catch(function () {
-      // Erro ao verificar – tentar iniciar normalmente
-      _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl);
-    });
+  _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl);
 }
 
 function _validarEIniciar(nome, placa, modelo, kmInicio, obs, btn, errEl) {
@@ -1002,14 +1094,16 @@ function salvarAbastecimento() {
 // ─── Nova Rota ────────────────────────────────────────────────
 function novaRota() {
   var intervaloSalvo = estado.intervalGPS;
+  var nomeLogado = estado.nome;
   estado = {
-    rotaId: null, nome: '', placa: '', modelo: '', kmInicio: '',
+    rotaId: null, nome: nomeLogado, placa: '', modelo: '', kmInicio: '',
     obsInicial: '', horaInicio: null,
     intervalGPS: intervaloSalvo,
     gpsTimer: null, observacoes: [], ultimaPos: null,
     ultimaGpsTsMs: 0
   };
-  document.getElementById('nome').value        = '';
+  document.getElementById('nome').value        = nomeLogado;
+  document.getElementById('nome').readOnly     = true;
   document.getElementById('placa').value       = '';
   document.getElementById('modelo').value      = '';
   document.getElementById('km-inicio').value   = '';

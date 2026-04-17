@@ -6,6 +6,7 @@
 const SHEET_ROTAS    = 'Rotas';
 const SHEET_GPS      = 'GPS_Log';
 const SHEET_VEICULOS = 'Veiculos';
+const SHEET_MOTORISTAS = 'Motoristas';
 const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
@@ -52,6 +53,10 @@ function getOrCreateSheet(name) {
         sheet.appendRow(['Placa', 'Modelo', 'Status']);
         sheet.setFrozenRows(1);
         break;
+      case SHEET_MOTORISTAS:
+        sheet.appendRow(['Nome']);
+        sheet.setFrozenRows(1);
+        break;
       case SHEET_CONFIG:
         sheet.appendRow(['Chave', 'Valor']);
         sheet.appendRow(['Intervalo_GPS', '10']);
@@ -75,9 +80,14 @@ function iniciarRota(data) {
     const sheet = getOrCreateSheet(SHEET_ROTAS);
     _ensureRotasColumns(sheet);
     const rows  = sheet.getDataRange().getValues();
-    const nomeMotorista = (data.nome || '').trim().toLowerCase();
+    const nomeMotorista = _normalizarNome(data.nome);
+    if (!nomeMotorista) return { success: false, error: 'Nome do motorista não informado.' };
+    const motorista = _buscarMotoristaPorNome(nomeMotorista);
+    if (!motorista) {
+      return { success: false, error: 'Motorista não cadastrado. Solicite cadastro ao supervisor.' };
+    }
     for (let i = 1; i < rows.length; i++) {
-      if (String(rows[i][1]).trim().toLowerCase() === nomeMotorista && rows[i][8] === 'Em_Transito') {
+      if (_normalizarNome(rows[i][1]) === nomeMotorista && rows[i][8] === 'Em_Transito') {
         return { success: false, error: 'Já existe uma rota ativa para este motorista. Finalize a rota anterior antes de iniciar uma nova.' };
       }
     }
@@ -85,7 +95,7 @@ function iniciarRota(data) {
     const ts    = data.timestamp || new Date().toISOString();
     sheet.appendRow([
       id,
-      data.nome,
+      motorista.nome,
       (data.placa || '').toUpperCase(),
       data.modelo,
       data.obsInicial || '',
@@ -175,8 +185,9 @@ function forcarFinalizarRota(rotaId) {
     _ensureRotasColumns(sheet);
     const rows  = sheet.getDataRange().getValues();
     const ts    = new Date().toISOString();
+    const rotaIdStr = String(rotaId).trim();
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === rotaId) {
+      if (String(rows[i][0]).trim() === rotaIdStr) {
         // Só atualiza colunas que já existem, evitando erros em abas com
         // número reduzido de colunas.
         sheet.getRange(i + 1,  9).setValue('Finalizado');
@@ -195,7 +206,7 @@ function forcarFinalizarRota(rotaId) {
         return { success: true, timestamp: ts };
       }
     }
-    return { success: false, error: 'Rota não encontrada (id=' + rotaId + ').' };
+    return { success: false, error: 'Rota não encontrada (id=' + rotaIdStr + ').' };
   } catch (err) {
     return { success: false, error: 'Falha ao forçar finalização: ' + err.message };
   }
@@ -259,6 +270,55 @@ function getVeiculos() {
       veiculos.push({ placa: rows[i][0], modelo: rows[i][1], status: rows[i][2] });
     }
     return { success: true, veiculos: veiculos };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function cadastrarMotorista(data) {
+  try {
+    const nome = String((data && data.nome) || '').trim();
+    if (!nome) return { success: false, error: 'Informe o nome do motorista.' };
+    const sheet = getOrCreateSheet(SHEET_MOTORISTAS);
+    const rows  = sheet.getDataRange().getValues();
+    const nomeNorm = _normalizarNome(nome);
+    for (let i = 1; i < rows.length; i++) {
+      if (_normalizarNome(rows[i][0]) === nomeNorm) {
+        sheet.getRange(i + 1, 1).setValue(nome);
+        return { success: true, message: 'Motorista atualizado com sucesso.' };
+      }
+    }
+    sheet.appendRow([nome]);
+    return { success: true, message: 'Motorista cadastrado com sucesso.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function getMotoristas() {
+  try {
+    const rows = getOrCreateSheet(SHEET_MOTORISTAS).getDataRange().getValues();
+    const motoristas = [];
+    for (let i = 1; i < rows.length; i++) {
+      const nome = String(rows[i][0] || '').trim();
+      if (!nome) continue;
+      motoristas.push({ nome: nome });
+    }
+    return { success: true, motoristas: motoristas };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function validarMotorista(nome) {
+  try {
+    const nomeNorm = _normalizarNome(nome);
+    if (!nomeNorm) return { success: false, error: 'Informe o nome do motorista.' };
+    const motorista = _buscarMotoristaPorNome(nomeNorm);
+    if (!motorista) {
+      return { success: false, error: 'Motorista não cadastrado. Solicite cadastro ao supervisor.' };
+    }
+    return { success: true, nome: motorista.nome };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -449,6 +509,15 @@ function doPost(e) {
       case 'getVeiculos':
         result = getVeiculos();
         break;
+      case 'cadastrarMotorista':
+        result = cadastrarMotorista(payload);
+        break;
+      case 'getMotoristas':
+        result = getMotoristas();
+        break;
+      case 'validarMotorista':
+        result = validarMotorista(payload.nome);
+        break;
       case 'getConfig':
         result = getConfig();
         break;
@@ -527,6 +596,22 @@ function validarVeiculo(data) {
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+function _normalizarNome(nome) {
+  return String(nome || '').trim().toLowerCase();
+}
+
+function _buscarMotoristaPorNome(nomeNormalizado) {
+  const rows = getOrCreateSheet(SHEET_MOTORISTAS).getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    const nome = String(rows[i][0] || '').trim();
+    if (!nome) continue;
+    if (_normalizarNome(nome) === nomeNormalizado) {
+      return { nome: nome };
+    }
+  }
+  return null;
 }
 
 // ── Verificar Senha do Supervisor ────────────────────────────
