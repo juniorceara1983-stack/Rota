@@ -1118,7 +1118,7 @@ function _ensureAbastecimentosColumns(sheet) {
   try {
     const totalCols = Math.max(sheet.getLastColumn() || 0, 1);
     const header = sheet.getRange(1, 1, 1, totalCols).getValues()[0];
-    if (header[5] !== 'Media_Km_L') sheet.getRange(1, 6).setValue('Media_Km_L');
+    if (totalCols < 6 || header[5] !== 'Media_Km_L') sheet.getRange(1, 6).setValue('Media_Km_L');
   } catch (err) {
     Logger.log('Falha ao garantir coluna de média de abastecimento: ' + err.message);
   }

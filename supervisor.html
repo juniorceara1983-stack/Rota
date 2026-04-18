@@ -1587,9 +1587,10 @@ function baixarAbastecimentosPDF() {
 
 function registrarChecklistAvaria() {
   var placa = document.getElementById('chk-placa').value.trim().toUpperCase();
-  var itens = coletarItensChecklist();
+  var checklistData = coletarItensChecklist();
+  var itens = checklistData.itens;
   if (!placa) { mostrarAlerta('msg-checklist', 'Informe a placa.', 'error'); return; }
-  if (itens === null) { mostrarAlerta('msg-checklist', 'Preencha parte e descrição em todos os itens adicionados.', 'error'); return; }
+  if (checklistData.invalido) { mostrarAlerta('msg-checklist', 'Preencha parte e descrição em todos os itens adicionados.', 'error'); return; }
   if (!itens.length) { mostrarAlerta('msg-checklist', 'Adicione ao menos uma avaria com parte e descrição.', 'error'); return; }
   esconderAlerta('msg-checklist');
   callApi('registrarChecklistAvaria', {
@@ -1631,36 +1632,65 @@ function adicionarItemChecklist(parte, avaria) {
   if (!wrap) return;
   var item = document.createElement('div');
   item.className = 'checklist-item';
-  item.innerHTML =
-    '<div class="form-row">' +
-      '<div class="form-group" style="flex:1">' +
-        '<label class="form-label">Parte do carro *</label>' +
-        '<input type="text" class="form-control chk-item-parte" placeholder="Ex: Para-choque dianteiro" value="' + escAttr(parte || '') + '">' +
-      '</div>' +
-    '</div>' +
-    '<div class="form-group">' +
-      '<label class="form-label">Descrição da avaria *</label>' +
-      '<textarea class="form-control chk-item-avaria" rows="2" placeholder="Descreva a avaria identificada">' + esc(String(avaria || '')) + '</textarea>' +
-    '</div>' +
-    '<div class="checklist-item-actions">' +
-      '<button type="button" class="btn btn-outline btn-sm">🗑 Remover</button>' +
-    '</div>';
-  var btnRemover = item.querySelector('button');
+
+  var row = document.createElement('div');
+  row.className = 'form-row';
+  var groupParte = document.createElement('div');
+  groupParte.className = 'form-group';
+  groupParte.style.flex = '1';
+  var labelParte = document.createElement('label');
+  labelParte.className = 'form-label';
+  labelParte.textContent = 'Parte do carro *';
+  var inputParte = document.createElement('input');
+  inputParte.type = 'text';
+  inputParte.className = 'form-control chk-item-parte';
+  inputParte.placeholder = 'Ex: Para-choque dianteiro';
+  inputParte.value = String(parte || '');
+  groupParte.appendChild(labelParte);
+  groupParte.appendChild(inputParte);
+  row.appendChild(groupParte);
+
+  var groupAvaria = document.createElement('div');
+  groupAvaria.className = 'form-group';
+  var labelAvaria = document.createElement('label');
+  labelAvaria.className = 'form-label';
+  labelAvaria.textContent = 'Descrição da avaria *';
+  var textareaAvaria = document.createElement('textarea');
+  textareaAvaria.className = 'form-control chk-item-avaria';
+  textareaAvaria.rows = 2;
+  textareaAvaria.placeholder = 'Descreva a avaria identificada';
+  textareaAvaria.value = String(avaria || '');
+  groupAvaria.appendChild(labelAvaria);
+  groupAvaria.appendChild(textareaAvaria);
+
+  var actions = document.createElement('div');
+  actions.className = 'checklist-item-actions';
+  var btnRemover = document.createElement('button');
+  btnRemover.type = 'button';
+  btnRemover.className = 'btn btn-outline btn-sm';
+  btnRemover.textContent = '🗑 Remover';
+  actions.appendChild(btnRemover);
+
   btnRemover.addEventListener('click', function () {
     if (wrap.children.length <= 1) {
-      item.querySelector('.chk-item-parte').value = '';
-      item.querySelector('.chk-item-avaria').value = '';
+      inputParte.value = '';
+      textareaAvaria.value = '';
       return;
     }
     wrap.removeChild(item);
   });
+
+  item.appendChild(row);
+  item.appendChild(groupAvaria);
+  item.appendChild(actions);
   wrap.appendChild(item);
 }
 
 function coletarItensChecklist() {
   var wrap = document.getElementById('chk-itens');
-  if (!wrap) return [];
+  if (!wrap) return { itens: [], invalido: false };
   var itens = [];
+  var invalido = false;
   var blocos = wrap.querySelectorAll('.checklist-item');
   for (var i = 0; i < blocos.length; i++) {
     var parteEl = blocos[i].querySelector('.chk-item-parte');
@@ -1668,10 +1698,13 @@ function coletarItensChecklist() {
     var parte = parteEl ? parteEl.value.trim() : '';
     var avaria = avariaEl ? avariaEl.value.trim() : '';
     if (!parte && !avaria) continue;
-    if (!parte || !avaria) return null;
+    if (!parte || !avaria) {
+      invalido = true;
+      continue;
+    }
     itens.push({ parteCarro: parte, descricaoAvaria: avaria });
   }
-  return itens;
+  return { itens: itens, invalido: invalido };
 }
 
 function carregarChecklistAvarias() {
@@ -2127,10 +2160,6 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function escAttr(str) {
-  return esc(str).replace(/'/g, '&#39;');
 }
 
 function sanitizarMensagem(msg) {
