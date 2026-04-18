@@ -9,6 +9,7 @@ const SHEET_VEICULOS = 'Veiculos';
 const SHEET_MOTORISTAS = 'Motoristas';
 const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
+const SHEET_CHECKLIST = 'Checklist_Avarias';
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
@@ -65,6 +66,13 @@ function getOrCreateSheet(name) {
         break;
       case SHEET_ABAST:
         sheet.appendRow(['Placa', 'Quilometragem', 'Litros', 'Valor', 'Data_Hora']);
+        sheet.setFrozenRows(1);
+        break;
+      case SHEET_CHECKLIST:
+        sheet.appendRow([
+          'ID', 'Placa', 'Parte_Carro', 'Descricao_Avaria', 'Status',
+          'Registrado_Em', 'Registrado_Por', 'Ciente_Motorista', 'Ciente_Em'
+        ]);
         sheet.setFrozenRows(1);
         break;
     }
@@ -560,6 +568,15 @@ function doPost(e) {
       case 'listarAbastecimentos':
         result = listarAbastecimentos(payload);
         break;
+      case 'registrarChecklistAvaria':
+        result = registrarChecklistAvaria(payload);
+        break;
+      case 'listarChecklistAvarias':
+        result = listarChecklistAvarias(payload);
+        break;
+      case 'confirmarCienciaChecklist':
+        result = confirmarCienciaChecklist(payload);
+        break;
       default:
         result = { success: false, error: 'Ação desconhecida: ' + action };
     }
@@ -866,7 +883,102 @@ function listarAbastecimentos(filtros) {
         dataHora: String(rows[i][4])
       });
     }
+    const resumo = _montarResumoAbastecimento(itens, placaFiltro);
+    return { success: true, itens: itens, resumo: resumo };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function registrarChecklistAvaria(data) {
+  try {
+    const placa = String((data && data.placa) || '').toUpperCase().trim();
+    const parte = String((data && data.parteCarro) || '').trim();
+    const descricao = String((data && data.descricaoAvaria) || '').trim();
+    const registradoPor = String((data && data.registradoPor) || '').trim();
+    const status = String((data && data.status) || 'Aberto').trim() || 'Aberto';
+    const registradoEm = (data && data.registradoEm) ? String(data.registradoEm) : new Date().toISOString();
+
+    if (!placa) return { success: false, error: 'Placa não informada.' };
+    if (!parte) return { success: false, error: 'Informe a parte do veículo.' };
+    if (!descricao) return { success: false, error: 'Informe a descrição da avaria.' };
+
+    const id = Utilities.getUuid();
+    const sheet = getOrCreateSheet(SHEET_CHECKLIST);
+    sheet.appendRow([id, placa, parte, descricao, status, registradoEm, registradoPor, '', '']);
+    return { success: true, id: id };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function listarChecklistAvarias(filtros) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_CHECKLIST);
+    const rows = sheet.getDataRange().getValues();
+    const placaFiltro = filtros && filtros.placa ? String(filtros.placa).toUpperCase().trim() : '';
+    const statusFiltro = filtros && filtros.status ? String(filtros.status).trim().toLowerCase() : '';
+    const itens = [];
+
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const id = String(rows[i][0] || '').trim();
+      const placa = String(rows[i][1] || '').toUpperCase().trim();
+      const parte = String(rows[i][2] || '').trim();
+      const descricao = String(rows[i][3] || '').trim();
+      const status = String(rows[i][4] || '').trim() || 'Aberto';
+      const registradoEm = String(rows[i][5] || '');
+      const registradoPor = String(rows[i][6] || '');
+      const cienteMotorista = String(rows[i][7] || '');
+      const cienteEm = String(rows[i][8] || '');
+
+      if (!id || !placa) continue;
+      if (placaFiltro && placa !== placaFiltro) continue;
+      if (statusFiltro && status.toLowerCase() !== statusFiltro) continue;
+
+      itens.push({
+        id: id,
+        placa: placa,
+        parteCarro: parte,
+        descricaoAvaria: descricao,
+        status: status,
+        registradoEm: registradoEm,
+        registradoPor: registradoPor,
+        cienteMotorista: cienteMotorista,
+        cienteEm: cienteEm
+      });
+    }
+
     return { success: true, itens: itens };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function confirmarCienciaChecklist(data) {
+  try {
+    const sheet = getOrCreateSheet(SHEET_CHECKLIST);
+    const rows = sheet.getDataRange().getValues();
+    const ids = (data && data.ids && Array.isArray(data.ids)) ? data.ids.map(function (id) {
+      return String(id || '').trim();
+    }).filter(function (id) { return !!id; }) : [];
+    const placa = String((data && data.placa) || '').toUpperCase().trim();
+    const motorista = String((data && data.motorista) || '').trim();
+    const cienteEm = (data && data.timestamp) ? String(data.timestamp) : new Date().toISOString();
+    let atualizados = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const idRow = String(rows[i][0] || '').trim();
+      const placaRow = String(rows[i][1] || '').toUpperCase().trim();
+      const statusRow = String(rows[i][4] || '').trim() || 'Aberto';
+      const matchById = ids.length > 0 && ids.indexOf(idRow) >= 0;
+      const matchByPlaca = ids.length === 0 && placa && placaRow === placa && statusRow === 'Aberto';
+      if (!matchById && !matchByPlaca) continue;
+      sheet.getRange(i + 1, 8).setValue(motorista);
+      sheet.getRange(i + 1, 9).setValue(cienteEm);
+      atualizados++;
+    }
+
+    return { success: true, atualizados: atualizados };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -992,4 +1104,79 @@ function _formatTs(iso) {
   } catch (_) {
     return iso;
   }
+}
+
+function _toFiniteNumber(value) {
+  const num = Number(value);
+  return isFinite(num) ? num : null;
+}
+
+function _obterUltimoKmRegistrado(placa) {
+  if (!placa) return { km: null, origem: '' };
+  const rows = getOrCreateSheet(SHEET_ROTAS).getDataRange().getValues();
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (String(rows[i][2] || '').toUpperCase().trim() !== placa) continue;
+    const kmFim = _toFiniteNumber(rows[i][14]);
+    if (kmFim !== null) return { km: kmFim, origem: 'Km final da rota' };
+    const kmInicio = _toFiniteNumber(rows[i][13]);
+    if (kmInicio !== null) return { km: kmInicio, origem: 'Km inicial da rota' };
+  }
+  return { km: null, origem: '' };
+}
+
+function _montarResumoAbastecimento(itens, placaFiltro) {
+  const resumo = {
+    placa: placaFiltro || '',
+    totalAbastecimentos: itens.length,
+    totalLitros: 0,
+    totalValor: 0,
+    ultimoKmAbastecimento: null,
+    ultimoKmRegistrado: null,
+    origemKmRegistrado: '',
+    diferencaKm: null,
+    kmRodadosTotal: null,
+    mediaKmRodados: null,
+    consumoMedioKml: null
+  };
+
+  for (let i = 0; i < itens.length; i++) {
+    resumo.totalLitros += Number(itens[i].litros || 0);
+    resumo.totalValor += Number(itens[i].valor || 0);
+  }
+
+  if (!placaFiltro || !itens.length) return resumo;
+
+  const ultimoKmAbastecimento = _toFiniteNumber(itens[0].quilometragem);
+  if (ultimoKmAbastecimento !== null) resumo.ultimoKmAbastecimento = ultimoKmAbastecimento;
+
+  const ultimoKmRegistrado = _obterUltimoKmRegistrado(placaFiltro);
+  resumo.ultimoKmRegistrado = ultimoKmRegistrado.km;
+  resumo.origemKmRegistrado = ultimoKmRegistrado.origem;
+  if (resumo.ultimoKmRegistrado !== null && resumo.ultimoKmAbastecimento !== null) {
+    resumo.diferencaKm = resumo.ultimoKmRegistrado - resumo.ultimoKmAbastecimento;
+  }
+
+  const ordemCronologica = itens.slice().sort(function (a, b) {
+    return new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime();
+  });
+  let somaKmRodados = 0;
+  let somaLitrosReferencia = 0;
+  let intervalosValidos = 0;
+  for (let i = 1; i < ordemCronologica.length; i++) {
+    const kmAnterior = _toFiniteNumber(ordemCronologica[i - 1].quilometragem);
+    const kmAtual = _toFiniteNumber(ordemCronologica[i].quilometragem);
+    const litrosAtual = _toFiniteNumber(ordemCronologica[i].litros);
+    if (kmAnterior === null || kmAtual === null || litrosAtual === null || litrosAtual <= 0) continue;
+    const kmRodados = kmAtual - kmAnterior;
+    if (kmRodados <= 0) continue;
+    somaKmRodados += kmRodados;
+    somaLitrosReferencia += litrosAtual;
+    intervalosValidos++;
+  }
+  if (intervalosValidos > 0) {
+    resumo.kmRodadosTotal = somaKmRodados;
+    resumo.mediaKmRodados = somaKmRodados / intervalosValidos;
+    resumo.consumoMedioKml = somaLitrosReferencia > 0 ? somaKmRodados / somaLitrosReferencia : null;
+  }
+  return resumo;
 }

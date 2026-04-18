@@ -30,6 +30,9 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 - Campo para registrar ocorrências/imprevistos durante a viagem
 - Botão de finalização com data/hora registrada automaticamente
 - Tela dedicada de **Registro de Abastecimento** (placa, KM, litros, valor e data/hora) acessível a partir do cadastro inicial ou durante uma rota ativa
+- Ao trocar de app sem encerrar a sessão, o login do motorista é restaurado automaticamente
+- Se existir rota ativa do motorista, ao entrar novamente no painel a tela abre direto em **Rota em Andamento** para finalizar quando necessário
+- Popup de checklist de avarias por placa com opção de ciência do motorista
 - Estado persistido em `localStorage` (motorista pode recarregar a página sem perder a rota)
 
 ### Painel do Supervisor
@@ -41,7 +44,8 @@ Sistema completo para monitoramento de rotas de veículos corporativos, com **Pa
 - **Motoristas:** cadastro de motoristas autorizados para login no painel do motorista
 - **Configurações:** define o intervalo de registro GPS (1 – 30 minutos) e a **retenção de dados** (7, 15, 30, 60, 90, 180 ou 365 dias) com botão "Limpar agora" e função `triggerLimpezaDiaria` para agendamento automático
 - **Rastrear:** busca por placa com última posição + lista de localizações e links diretos para Google Maps
-- **Abastecimento:** aba apenas de **consulta** (lista e filtro por placa) com botão **Baixar PDF**. O registro é feito pelo motorista no painel do motorista
+- **Abastecimento:** aba de **consulta** com filtro por placa, resumo comparativo de KM (último abastecimento x último KM registrado), média de KM rodados, média de consumo e botão **Baixar PDF**
+- **Checklist:** aba para registrar avarias por parte do veículo e acompanhar ciência do motorista
 - **Relatórios:** geração e download de CSV com todas as rotas (filtrável por período e placa), incluindo log GPS completo
 
 ---
@@ -135,6 +139,7 @@ O sistema cria automaticamente as seguintes abas na planilha:
 | **Motoristas** | Nome |
 | **Config** | Chave, Valor |
 | **Abastecimentos** | Placa, Quilometragem, Litros, Valor, Data_Hora |
+| **Checklist_Avarias** | ID, Placa, Parte_Carro, Descricao_Avaria, Status, Registrado_Em, Registrado_Por, Ciente_Motorista, Ciente_Em |
 
 ### Status dos Veículos
 - `Disponivel` — veículo livre

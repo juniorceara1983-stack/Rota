@@ -572,6 +572,8 @@ var estado = {
   ultimaPos:     null,
   ultimaGpsTsMs: 0
 };
+var MOTORISTA_AUTH_KEY = 'motoristaAuthNome';
+var _checklistAvisoKey = '';
 
 // ─── Inicialização ────────────────────────────────────────────
 window.onload = function () {
@@ -582,19 +584,28 @@ window.onload = function () {
       }
     });
 
-  var nomeSessao = (sessionStorage.getItem('motoristaAuthNome') || '').trim();
+  var nomeSessao = (sessionStorage.getItem(MOTORISTA_AUTH_KEY) || localStorage.getItem(MOTORISTA_AUTH_KEY) || '').trim();
+  var placaInput = document.getElementById('placa');
+  if (placaInput) {
+    placaInput.addEventListener('blur', function () {
+      var placa = (placaInput.value || '').trim().toUpperCase();
+      if (placa) notificarChecklistPendente(placa, false);
+    });
+  }
   if (nomeSessao) {
     callApi('validarMotorista', { nome: nomeSessao })
       .then(function (res) {
         if (res && res.success) {
           _concluirLoginMotorista(res.nome || nomeSessao, true);
         } else {
-          sessionStorage.removeItem('motoristaAuthNome');
+          sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
+          localStorage.removeItem(MOTORISTA_AUTH_KEY);
           mostrarTela('tela-login');
         }
       })
       .catch(function () {
-        sessionStorage.removeItem('motoristaAuthNome');
+        sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
+        localStorage.removeItem(MOTORISTA_AUTH_KEY);
         mostrarTela('tela-login');
       });
   } else {
@@ -630,7 +641,8 @@ function _concluirLoginMotorista(nome, silencioso) {
   document.getElementById('nome').value = estado.nome;
   document.getElementById('nome').readOnly = true;
   esconderErro(document.getElementById('err-login'));
-  sessionStorage.setItem('motoristaAuthNome', estado.nome);
+  sessionStorage.setItem(MOTORISTA_AUTH_KEY, estado.nome);
+  localStorage.setItem(MOTORISTA_AUTH_KEY, estado.nome);
 
   callApi('buscarRotaAtivaMotorista', { nome: estado.nome })
     .then(function (res) {
@@ -647,6 +659,7 @@ function _concluirLoginMotorista(nome, silencioso) {
         estado.ultimaGpsTsMs = 0;
         salvarEstado();
         mostrarTelaRota();
+        notificarChecklistPendente(estado.placa, true);
         return;
       }
       localStorage.removeItem('rotaAtiva');
@@ -667,7 +680,8 @@ function _concluirLoginMotorista(nome, silencioso) {
     })
     .catch(function (err) {
       if (silencioso) {
-        sessionStorage.removeItem('motoristaAuthNome');
+        sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
+        localStorage.removeItem(MOTORISTA_AUTH_KEY);
         mostrarTela('tela-login');
         return;
       }
@@ -748,6 +762,7 @@ function iniciarRota() {
     return;
   }
   esconderErro(errEl);
+  notificarChecklistPendente(placa, false);
 
   var btn = document.getElementById('btn-iniciar');
   setBtnLoading(btn, true, '<span class="spinner"></span> Verificando…');
@@ -950,7 +965,7 @@ var _modalCallback = null;
 
 function mostrarConfirm(titulo, msg, callback, btnLabel) {
   document.getElementById('modal-title').textContent = titulo || 'Confirmação';
-  document.getElementById('modal-msg').textContent   = msg;
+  document.getElementById('modal-msg').textContent   = sanitizarMensagem(msg);
   var ok = document.getElementById('modal-ok');
   ok.textContent = btnLabel || 'Confirmar';
   _modalCallback = callback;
@@ -1143,7 +1158,7 @@ function setBtnLoading(btn, loading, html) {
 }
 
 function mostrarErro(el, msg) {
-  el.textContent = msg;
+  el.textContent = sanitizarMensagem(msg);
   el.classList.remove('hidden');
 }
 
@@ -1158,6 +1173,43 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function sanitizarMensagem(msg) {
+  return String(msg || '')
+    .replace(/https?:\/\/[^\s)]+/gi, '[link oculto]')
+    .replace(/\b[\w.-]+\.github\.io\/[^\s)]+/gi, '[link oculto]')
+    .replace(/\bscript\.google\.com\/[^\s)]+/gi, '[link oculto]');
+}
+
+function notificarChecklistPendente(placa, mostrarMesmoSeJaVisto) {
+  var placaUp = String(placa || '').trim().toUpperCase();
+  if (!placaUp) return;
+  callApi('listarChecklistAvarias', { placa: placaUp, status: 'Aberto' })
+    .then(function (res) {
+      if (!res || !res.success || !res.itens || !res.itens.length) return;
+      var ids = res.itens.map(function (it) { return it.id; });
+      var chave = placaUp + ':' + ids.join(',');
+      if (!mostrarMesmoSeJaVisto && _checklistAvisoKey === chave) return;
+      _checklistAvisoKey = chave;
+
+      var preview = res.itens.slice(0, 3).map(function (it) {
+        return '- ' + String(it.parteCarro || '') + ': ' + String(it.descricaoAvaria || '');
+      }).join('\n');
+      var extra = res.itens.length > 3 ? '\n... e mais ' + (res.itens.length - 3) + ' registro(s).' : '';
+      var mensagem = 'Checklist de avarias para ' + placaUp + ':\n' + preview + extra +
+        '\n\nClique em "Estou ciente" para registrar ciência, ou em "Cancelar" para apenas conferir.';
+
+      mostrarConfirm('Checklist de Avarias', mensagem, function () {
+        callApi('confirmarCienciaChecklist', {
+          ids: ids,
+          placa: placaUp,
+          motorista: estado.nome || '',
+          timestamp: new Date().toISOString()
+        }).catch(function () {});
+      }, 'Estou ciente');
+    })
+    .catch(function () {});
 }
 
 // Converte speed do Geolocation API (m/s) para km/h, arredondado a 1 casa.
