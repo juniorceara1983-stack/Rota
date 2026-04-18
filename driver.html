@@ -1107,7 +1107,10 @@ function salvarAbastecimento() {
         mostrarErro(errEl, 'Erro: ' + (res.error || 'desconhecido'));
         return;
       }
-      okEl.textContent = '✅ Abastecimento registrado com sucesso.';
+      var mediaTxt = (res.mediaKmL !== undefined && res.mediaKmL !== null)
+        ? Number(res.mediaKmL).toFixed(2)
+        : '0.00';
+      okEl.textContent = '✅ Abastecimento registrado com sucesso. Média: ' + mediaTxt + ' km/L';
       okEl.classList.remove('hidden');
       document.getElementById('ab-km').value = '';
       document.getElementById('ab-litros').value = '';

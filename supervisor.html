@@ -172,6 +172,18 @@
       box-shadow: 0 0 0 3px rgba(21,101,192,.12);
     }
     select.form-control { cursor: pointer; }
+    .checklist-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: #FAFCFF;
+    }
+    .checklist-item-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
 
     /* ── Table ── */
     .table-wrap  { overflow-x: auto; }
@@ -755,7 +767,7 @@
     <div class="table-wrap">
       <table id="abast-table">
         <thead>
-          <tr><th>Placa</th><th>KM</th><th>Litros</th><th>Valor</th><th>Data/Hora</th></tr>
+          <tr><th>Placa</th><th>KM</th><th>Litros</th><th>Média (km/L)</th><th>Valor</th><th>Data/Hora</th></tr>
         </thead>
         <tbody id="abast-body"></tbody>
       </table>
@@ -781,14 +793,13 @@
         <label class="form-label" for="chk-placa">Placa *</label>
         <input id="chk-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="AAA-0000">
       </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label" for="chk-parte">Parte do carro *</label>
-        <input id="chk-parte" type="text" class="form-control" placeholder="Ex: Para-choque dianteiro">
-      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label" for="chk-avaria">Descrição da avaria *</label>
-      <textarea id="chk-avaria" class="form-control" rows="3" placeholder="Descreva a avaria identificada"></textarea>
+    <div class="form-group" style="margin-top:8px">
+      <label class="form-label">Itens do checklist *</label>
+      <div id="chk-itens"></div>
+      <button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="adicionarItemChecklist()" aria-label="Adicionar nova avaria ao checklist">
+        ➕ Adicionar avaria
+      </button>
     </div>
     <button class="btn btn-primary" style="width:auto;padding:10px 20px" onclick="registrarChecklistAvaria()">
       💾 &nbsp; Registrar avaria
@@ -1040,6 +1051,7 @@ function fazerLogout() {
 }
 
 function iniciarPainel() {
+  inicializarFormularioChecklist();
   carregarRotasAtivas();
   carregarConfig();
   autoRefreshTimer = setInterval(function () {
@@ -1444,6 +1456,7 @@ function carregarAbastecimentos() {
           '<td><code>' + esc(it.placa) + '</code></td>' +
           '<td>' + esc(String(it.quilometragem)) + '</td>' +
           '<td>' + esc(String(it.litros)) + '</td>' +
+          '<td>' + (it.mediaKmL !== null && it.mediaKmL !== undefined ? esc(Number(it.mediaKmL).toFixed(2)) : '–') + '</td>' +
           '<td>R$ ' + esc(Number(it.valor || 0).toFixed(2)) + '</td>' +
           '<td style="white-space:nowrap">' + esc(formatarData(it.dataHora)) + '</td>';
         body.appendChild(tr);
@@ -1512,6 +1525,7 @@ function baixarAbastecimentosPDF() {
       '<td><strong>' + esc(it.placa) + '</strong></td>' +
       '<td>' + esc(String(it.quilometragem)) + '</td>' +
       '<td>' + esc(Number(it.litros || 0).toFixed(2)) + '</td>' +
+      '<td>' + (it.mediaKmL !== null && it.mediaKmL !== undefined ? esc(Number(it.mediaKmL).toFixed(2)) : '–') + '</td>' +
       '<td>R$ ' + esc(Number(it.valor || 0).toFixed(2)) + '</td>' +
       '<td>' + esc(formatarData(it.dataHora)) + '</td>' +
       '</tr>';
@@ -1538,7 +1552,7 @@ function baixarAbastecimentosPDF() {
     '</div>' +
     '<div class="report-body">' +
     '<table><thead><tr>' +
-    '<th>Placa</th><th>KM</th><th>Litros</th><th>Valor</th><th>Data/Hora</th>' +
+    '<th>Placa</th><th>KM</th><th>Litros</th><th>Média (km/L)</th><th>Valor</th><th>Data/Hora</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table>' +
     '<div class="totais"><strong>Totais:</strong> ' +
     itens.length + ' abastecimento(s) &nbsp;|&nbsp; ' +
@@ -1573,24 +1587,22 @@ function baixarAbastecimentosPDF() {
 
 function registrarChecklistAvaria() {
   var placa = document.getElementById('chk-placa').value.trim().toUpperCase();
-  var parte = document.getElementById('chk-parte').value.trim();
-  var avaria = document.getElementById('chk-avaria').value.trim();
+  var checklistData = coletarItensChecklist();
+  var itens = checklistData.itens;
   if (!placa) { mostrarAlerta('msg-checklist', 'Informe a placa.', 'error'); return; }
-  if (!parte) { mostrarAlerta('msg-checklist', 'Informe a parte do carro.', 'error'); return; }
-  if (!avaria) { mostrarAlerta('msg-checklist', 'Informe a avaria.', 'error'); return; }
+  if (checklistData.invalido) { mostrarAlerta('msg-checklist', 'Preencha parte e descrição em todos os itens adicionados.', 'error'); return; }
+  if (!itens.length) { mostrarAlerta('msg-checklist', 'Adicione ao menos uma avaria com parte e descrição.', 'error'); return; }
   esconderAlerta('msg-checklist');
   callApi('registrarChecklistAvaria', {
     placa: placa,
-    parteCarro: parte,
-    descricaoAvaria: avaria,
+    itens: itens,
     registradoPor: 'Supervisor'
   })
     .then(function (res) {
       if (res && res.success) {
-        mostrarAlerta('msg-checklist', '✅ Checklist registrado com sucesso.', 'success');
-        document.getElementById('chk-placa').value = '';
-        document.getElementById('chk-parte').value = '';
-        document.getElementById('chk-avaria').value = '';
+        var total = (res.total !== undefined && res.total !== null) ? Number(res.total) : Number(itens.length);
+        mostrarAlerta('msg-checklist', '✅ Checklist registrado com sucesso. ' + total + ' item(ns) salvo(s).', 'success');
+        limparFormularioChecklist();
         carregarChecklistAvarias();
       } else {
         mostrarAlerta('msg-checklist', 'Erro: ' + ((res && res.error) || ''), 'error');
@@ -1599,6 +1611,101 @@ function registrarChecklistAvaria() {
     .catch(function (err) {
       mostrarAlerta('msg-checklist', 'Erro: ' + (err.message || err), 'error');
     });
+}
+
+function inicializarFormularioChecklist() {
+  var wrap = document.getElementById('chk-itens');
+  if (!wrap || wrap.children.length) return;
+  adicionarItemChecklist();
+}
+
+function limparFormularioChecklist() {
+  var placaEl = document.getElementById('chk-placa');
+  var wrap = document.getElementById('chk-itens');
+  if (placaEl) placaEl.value = '';
+  if (wrap) wrap.innerHTML = '';
+  adicionarItemChecklist();
+}
+
+function adicionarItemChecklist(parte, avaria) {
+  var wrap = document.getElementById('chk-itens');
+  if (!wrap) return;
+  var item = document.createElement('div');
+  item.className = 'checklist-item';
+
+  var row = document.createElement('div');
+  row.className = 'form-row';
+  var groupParte = document.createElement('div');
+  groupParte.className = 'form-group';
+  groupParte.style.flex = '1';
+  var labelParte = document.createElement('label');
+  labelParte.className = 'form-label';
+  labelParte.textContent = 'Parte do carro *';
+  var inputParte = document.createElement('input');
+  inputParte.type = 'text';
+  inputParte.className = 'form-control chk-item-parte';
+  inputParte.placeholder = 'Ex: Para-choque dianteiro';
+  inputParte.value = String(parte || '');
+  groupParte.appendChild(labelParte);
+  groupParte.appendChild(inputParte);
+  row.appendChild(groupParte);
+
+  var groupAvaria = document.createElement('div');
+  groupAvaria.className = 'form-group';
+  var labelAvaria = document.createElement('label');
+  labelAvaria.className = 'form-label';
+  labelAvaria.textContent = 'Descrição da avaria *';
+  var textareaAvaria = document.createElement('textarea');
+  textareaAvaria.className = 'form-control chk-item-avaria';
+  textareaAvaria.rows = 2;
+  textareaAvaria.placeholder = 'Descreva a avaria identificada';
+  textareaAvaria.value = String(avaria || '');
+  groupAvaria.appendChild(labelAvaria);
+  groupAvaria.appendChild(textareaAvaria);
+
+  var actions = document.createElement('div');
+  actions.className = 'checklist-item-actions';
+  var btnRemover = document.createElement('button');
+  btnRemover.type = 'button';
+  btnRemover.className = 'btn btn-outline btn-sm';
+  btnRemover.textContent = '🗑 Remover';
+  btnRemover.setAttribute('aria-label', 'Remover item do checklist');
+  actions.appendChild(btnRemover);
+
+  btnRemover.addEventListener('click', function () {
+    if (wrap.children.length <= 1) {
+      inputParte.value = '';
+      textareaAvaria.value = '';
+      return;
+    }
+    wrap.removeChild(item);
+  });
+
+  item.appendChild(row);
+  item.appendChild(groupAvaria);
+  item.appendChild(actions);
+  wrap.appendChild(item);
+}
+
+function coletarItensChecklist() {
+  var wrap = document.getElementById('chk-itens');
+  if (!wrap) return { itens: [], invalido: false };
+  var itens = [];
+  var invalido = false;
+  var blocos = wrap.querySelectorAll('.checklist-item');
+  for (var i = 0; i < blocos.length; i++) {
+    var parteEl = blocos[i].querySelector('.chk-item-parte');
+    var avariaEl = blocos[i].querySelector('.chk-item-avaria');
+    var parte = parteEl ? parteEl.value.trim() : '';
+    var avaria = avariaEl ? avariaEl.value.trim() : '';
+    if (!parte && !avaria) continue;
+    if (!parte || !avaria) {
+      invalido = true;
+      continue;
+    }
+    itens.push({ parteCarro: parte, descricaoAvaria: avaria });
+  }
+  return { itens: itens, invalido: invalido };
 }
 
 function carregarChecklistAvarias() {
