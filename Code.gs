@@ -871,7 +871,7 @@ function registrarAbastecimento(data) {
     }
     let mediaKmL = 0;
     if (ultimoKm !== null && litros > 0) {
-      mediaKmL = Number(((km - ultimoKm) / litros).toFixed(2));
+      mediaKmL = Math.round(((km - ultimoKm) / litros) * 100) / 100;
     }
     sheet.appendRow([placa, km, litros, valor, dataHora, mediaKmL]);
     return { success: true, mediaKmL: mediaKmL, ultimoKm: ultimoKm };
@@ -1115,7 +1115,8 @@ function _ensureRotasColumns(sheet) {
 
 function _ensureAbastecimentosColumns(sheet) {
   try {
-    const header = sheet.getRange(1, 1, 1, Math.max(ABAST_EXPECTED_COLS, sheet.getLastColumn())).getValues()[0];
+    const totalCols = Math.max(sheet.getLastColumn() || 0, 1);
+    const header = sheet.getRange(1, 1, 1, totalCols).getValues()[0];
     if (header[5] !== 'Media_Km_L') sheet.getRange(1, 6).setValue('Media_Km_L');
   } catch (err) {
     Logger.log('Falha ao garantir coluna de média de abastecimento: ' + err.message);
