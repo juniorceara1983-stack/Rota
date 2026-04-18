@@ -11,6 +11,7 @@ const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
 const SHEET_CHECKLIST = 'Checklist_Avarias';
 const CHECKLIST_STATUS_ABERTO = 'Aberto';
+const ABAST_EXPECTED_COLS = 6;
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
@@ -66,7 +67,7 @@ function getOrCreateSheet(name) {
         sheet.setFrozenRows(1);
         break;
       case SHEET_ABAST:
-        sheet.appendRow(['Placa', 'Quilometragem', 'Litros', 'Valor', 'Data_Hora']);
+        sheet.appendRow(['Placa', 'Quilometragem', 'Litros', 'Valor', 'Data_Hora', 'Media_Km_L']);
         sheet.setFrozenRows(1);
         break;
       case SHEET_CHECKLIST:
@@ -79,6 +80,8 @@ function getOrCreateSheet(name) {
     }
   } else if (name === SHEET_ROTAS) {
     _ensureRotasColumns(sheet);
+  } else if (name === SHEET_ABAST) {
+    _ensureAbastecimentosColumns(sheet);
   }
   return sheet;
 }
@@ -850,18 +853,28 @@ function buscarRotaAtivaMotorista(nome) {
 function registrarAbastecimento(data) {
   try {
     const placa = (data.placa || '').toUpperCase().trim();
-    const km = data.quilometragem;
-    const litros = data.litros;
-    const valor = data.valor;
+    const km = _toFiniteNumber(data.quilometragem);
+    const litros = _toFiniteNumber(data.litros);
+    const valor = _toFiniteNumber(data.valor);
     const dataHora = data.dataHora || new Date().toISOString();
     if (!placa) return { success: false, error: 'Placa não informada.' };
-    if (km === undefined || km === null || km === '') return { success: false, error: 'Quilometragem obrigatória.' };
-    if (litros === undefined || litros === null || litros === '') return { success: false, error: 'Litros obrigatórios.' };
-    if (valor === undefined || valor === null || valor === '') return { success: false, error: 'Valor obrigatório.' };
+    if (km === null || km < 0) return { success: false, error: 'Quilometragem inválida.' };
+    if (litros === null || litros <= 0) return { success: false, error: 'Litros inválidos.' };
+    if (valor === null || valor <= 0) return { success: false, error: 'Valor inválido.' };
 
     const sheet = getOrCreateSheet(SHEET_ABAST);
-    sheet.appendRow([placa, Number(km), Number(litros), Number(valor), dataHora]);
-    return { success: true };
+    _ensureAbastecimentosColumns(sheet);
+    const rows = sheet.getDataRange().getValues();
+    const ultimoKm = _obterUltimoKmAbastecimentoPorPlaca(rows, placa);
+    if (ultimoKm !== null && km <= ultimoKm) {
+      return { success: false, error: 'Quilometragem deve ser maior que o último KM de abastecimento (' + ultimoKm + ').' };
+    }
+    let mediaKmL = 0;
+    if (ultimoKm !== null && litros > 0) {
+      mediaKmL = Number(((km - ultimoKm) / litros).toFixed(2));
+    }
+    sheet.appendRow([placa, km, litros, valor, dataHora, mediaKmL]);
+    return { success: true, mediaKmL: mediaKmL, ultimoKm: ultimoKm };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -870,6 +883,7 @@ function registrarAbastecimento(data) {
 function listarAbastecimentos(filtros) {
   try {
     const sheet = getOrCreateSheet(SHEET_ABAST);
+    _ensureAbastecimentosColumns(sheet);
     const rows = sheet.getDataRange().getValues();
     const placaFiltro = filtros && filtros.placa ? String(filtros.placa).toUpperCase().trim() : '';
     const itens = [];
@@ -881,7 +895,8 @@ function listarAbastecimentos(filtros) {
         quilometragem: rows[i][1],
         litros: rows[i][2],
         valor: rows[i][3],
-        dataHora: String(rows[i][4])
+        dataHora: String(rows[i][4]),
+        mediaKmL: _toFiniteNumber(rows[i][5])
       });
     }
     const resumo = _montarResumoAbastecimento(itens, placaFiltro);
@@ -894,20 +909,22 @@ function listarAbastecimentos(filtros) {
 function registrarChecklistAvaria(data) {
   try {
     const placa = String((data && data.placa) || '').toUpperCase().trim();
-    const parte = String((data && data.parteCarro) || '').trim();
-    const descricao = String((data && data.descricaoAvaria) || '').trim();
     const registradoPor = String((data && data.registradoPor) || '').trim();
     const status = String((data && data.status) || '').trim() || CHECKLIST_STATUS_ABERTO;
     const registradoEm = (data && data.registradoEm) ? String(data.registradoEm) : new Date().toISOString();
-
+    const entradas = _normalizarEntradasChecklist(data);
     if (!placa) return { success: false, error: 'Placa não informada.' };
-    if (!parte) return { success: false, error: 'Informe a parte do veículo.' };
-    if (!descricao) return { success: false, error: 'Informe a descrição da avaria.' };
-
+    if (!entradas.length) return { success: false, error: 'Informe ao menos uma avaria.' };
     const id = Utilities.getUuid();
     const sheet = getOrCreateSheet(SHEET_CHECKLIST);
-    sheet.appendRow([id, placa, parte, descricao, status, registradoEm, registradoPor, '', '']);
-    return { success: true, id: id };
+    const ids = [];
+    for (let i = 0; i < entradas.length; i++) {
+      const entrada = entradas[i];
+      const linhaId = i === 0 ? id : Utilities.getUuid();
+      sheet.appendRow([linhaId, placa, entrada.parteCarro, entrada.descricaoAvaria, status, registradoEm, registradoPor, '', '']);
+      ids.push(linhaId);
+    }
+    return { success: true, id: ids[0], ids: ids, total: ids.length };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -1096,6 +1113,15 @@ function _ensureRotasColumns(sheet) {
   }
 }
 
+function _ensureAbastecimentosColumns(sheet) {
+  try {
+    const header = sheet.getRange(1, 1, 1, Math.max(ABAST_EXPECTED_COLS, sheet.getLastColumn())).getValues()[0];
+    if (header[5] !== 'Media_Km_L') sheet.getRange(1, 6).setValue('Media_Km_L');
+  } catch (err) {
+    Logger.log('Falha ao garantir coluna de média de abastecimento: ' + err.message);
+  }
+}
+
 function _toNumberOrBlank(value) {
   return value !== undefined && value !== null && value !== '' ? Number(value) : '';
 }
@@ -1112,6 +1138,31 @@ function _formatTs(iso) {
 function _toFiniteNumber(value) {
   const num = Number(value);
   return isFinite(num) ? num : null;
+}
+
+function _obterUltimoKmAbastecimentoPorPlaca(rows, placa) {
+  if (!rows || rows.length <= 1 || !placa) return null;
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const placaRow = String(rows[i][0] || '').toUpperCase().trim();
+    if (placaRow !== placa) continue;
+    return _toFiniteNumber(rows[i][1]);
+  }
+  return null;
+}
+
+function _normalizarEntradasChecklist(data) {
+  const itens = (data && Array.isArray(data.itens)) ? data.itens : [{
+    parteCarro: data && data.parteCarro,
+    descricaoAvaria: data && data.descricaoAvaria
+  }];
+  return itens.map(function (item) {
+    return {
+      parteCarro: String((item && item.parteCarro) || '').trim(),
+      descricaoAvaria: String((item && item.descricaoAvaria) || '').trim()
+    };
+  }).filter(function (item) {
+    return !!item.parteCarro && !!item.descricaoAvaria;
+  });
 }
 
 function _obterUltimoKmRegistrado(placa) {
