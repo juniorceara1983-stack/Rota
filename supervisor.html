@@ -791,7 +791,7 @@
       <textarea id="chk-avaria" class="form-control" rows="3" placeholder="Descreva a avaria identificada"></textarea>
     </div>
     <button class="btn btn-primary" style="width:auto;padding:10px 20px" onclick="registrarChecklistAvaria()">
-      💾 &nbsp; Salvar checklist
+      💾 &nbsp; Registrar avaria
     </button>
   </div>
 
@@ -1472,7 +1472,7 @@ function renderResumoAbastecimento(resumo, placaFiltro) {
   if (resumo.ultimoKmAbastecimento !== null && resumo.ultimoKmRegistrado !== null) {
     var dif = Number(resumo.diferencaKm || 0);
     var sinal = dif >= 0 ? '+' : '';
-    cmpTxt = sinal + dif.toFixed(1) + ' km (' + esc(resumo.origemKmRegistrado || 'KM registrado') + ' x último KM de abastecimento)';
+    cmpTxt = sinal + dif.toFixed(1) + ' km (' + esc(resumo.origemKmRegistrado || 'KM registrado') + ' versus último KM de abastecimento)';
   }
   var mediaKm = resumo.mediaKmRodados !== null ? Number(resumo.mediaKmRodados).toFixed(2) + ' km' : '–';
   var consumo = resumo.consumoMedioKml !== null ? Number(resumo.consumoMedioKml).toFixed(2) + ' km/L' : '–';

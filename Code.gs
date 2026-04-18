@@ -10,6 +10,7 @@ const SHEET_MOTORISTAS = 'Motoristas';
 const SHEET_CONFIG   = 'Config';
 const SHEET_ABAST    = 'Abastecimentos';
 const SHEET_CHECKLIST = 'Checklist_Avarias';
+const CHECKLIST_STATUS_ABERTO = 'Aberto';
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
@@ -896,7 +897,7 @@ function registrarChecklistAvaria(data) {
     const parte = String((data && data.parteCarro) || '').trim();
     const descricao = String((data && data.descricaoAvaria) || '').trim();
     const registradoPor = String((data && data.registradoPor) || '').trim();
-    const status = String((data && data.status) || 'Aberto').trim() || 'Aberto';
+    const status = String((data && data.status) || '').trim() || CHECKLIST_STATUS_ABERTO;
     const registradoEm = (data && data.registradoEm) ? String(data.registradoEm) : new Date().toISOString();
 
     if (!placa) return { success: false, error: 'Placa não informada.' };
@@ -925,7 +926,7 @@ function listarChecklistAvarias(filtros) {
       const placa = String(rows[i][1] || '').toUpperCase().trim();
       const parte = String(rows[i][2] || '').trim();
       const descricao = String(rows[i][3] || '').trim();
-      const status = String(rows[i][4] || '').trim() || 'Aberto';
+      const status = String(rows[i][4] || '').trim() || CHECKLIST_STATUS_ABERTO;
       const registradoEm = String(rows[i][5] || '');
       const registradoPor = String(rows[i][6] || '');
       const cienteMotorista = String(rows[i][7] || '');
@@ -969,9 +970,9 @@ function confirmarCienciaChecklist(data) {
     for (let i = 1; i < rows.length; i++) {
       const idRow = String(rows[i][0] || '').trim();
       const placaRow = String(rows[i][1] || '').toUpperCase().trim();
-      const statusRow = String(rows[i][4] || '').trim() || 'Aberto';
+      const statusRow = String(rows[i][4] || '').trim() || CHECKLIST_STATUS_ABERTO;
       const matchById = ids.length > 0 && ids.indexOf(idRow) >= 0;
-      const matchByPlaca = ids.length === 0 && placa && placaRow === placa && statusRow === 'Aberto';
+      const matchByPlaca = ids.length === 0 && placa && placaRow === placa && statusRow === CHECKLIST_STATUS_ABERTO;
       if (!matchById && !matchByPlaca) continue;
       sheet.getRange(i + 1, 8).setValue(motorista);
       sheet.getRange(i + 1, 9).setValue(cienteEm);
