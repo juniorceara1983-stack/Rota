@@ -12,6 +12,7 @@ const SHEET_ABAST    = 'Abastecimentos';
 const SHEET_CHECKLIST = 'Checklist_Avarias';
 const CHECKLIST_STATUS_ABERTO = 'Aberto';
 const ABAST_EXPECTED_COLS = 6;
+const MEDIA_KM_L_PRECISION_FACTOR = 100;
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
@@ -871,7 +872,7 @@ function registrarAbastecimento(data) {
     }
     let mediaKmL = 0;
     if (ultimoKm !== null && litros > 0) {
-      mediaKmL = Math.round(((km - ultimoKm) / litros) * 100) / 100;
+      mediaKmL = Math.round(((km - ultimoKm) / litros) * MEDIA_KM_L_PRECISION_FACTOR) / MEDIA_KM_L_PRECISION_FACTOR;
     }
     sheet.appendRow([placa, km, litros, valor, dataHora, mediaKmL]);
     return { success: true, mediaKmL: mediaKmL, ultimoKm: ultimoKm };
@@ -1152,10 +1153,11 @@ function _obterUltimoKmAbastecimentoPorPlaca(rows, placa) {
 }
 
 function _normalizarEntradasChecklist(data) {
-  const itens = (data && Array.isArray(data.itens)) ? data.itens : [{
-    parteCarro: data && data.parteCarro,
-    descricaoAvaria: data && data.descricaoAvaria
-  }];
+  const itens = (data && Array.isArray(data.itens))
+    ? data.itens
+    : ((data && (data.parteCarro || data.descricaoAvaria))
+      ? [{ parteCarro: data.parteCarro, descricaoAvaria: data.descricaoAvaria }]
+      : []);
   return itens.map(function (item) {
     return {
       parteCarro: String((item && item.parteCarro) || '').trim(),

@@ -1589,6 +1589,7 @@ function registrarChecklistAvaria() {
   var placa = document.getElementById('chk-placa').value.trim().toUpperCase();
   var itens = coletarItensChecklist();
   if (!placa) { mostrarAlerta('msg-checklist', 'Informe a placa.', 'error'); return; }
+  if (itens === null) { mostrarAlerta('msg-checklist', 'Preencha parte e descrição em todos os itens adicionados.', 'error'); return; }
   if (!itens.length) { mostrarAlerta('msg-checklist', 'Adicione ao menos uma avaria com parte e descrição.', 'error'); return; }
   esconderAlerta('msg-checklist');
   callApi('registrarChecklistAvaria', {
@@ -1598,7 +1599,7 @@ function registrarChecklistAvaria() {
   })
     .then(function (res) {
       if (res && res.success) {
-        var total = Number(res.total || itens.length || 1);
+        var total = (res.total !== undefined && res.total !== null) ? Number(res.total) : Number(itens.length);
         mostrarAlerta('msg-checklist', '✅ Checklist registrado com sucesso. ' + total + ' item(ns) salvo(s).', 'success');
         limparFormularioChecklist();
         carregarChecklistAvarias();
@@ -1667,7 +1668,7 @@ function coletarItensChecklist() {
     var parte = parteEl ? parteEl.value.trim() : '';
     var avaria = avariaEl ? avariaEl.value.trim() : '';
     if (!parte && !avaria) continue;
-    if (!parte || !avaria) return [];
+    if (!parte || !avaria) return null;
     itens.push({ parteCarro: parte, descricaoAvaria: avaria });
   }
   return itens;
