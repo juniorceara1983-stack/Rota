@@ -12,7 +12,6 @@ const SHEET_ABAST    = 'Abastecimentos';
 const SHEET_CHECKLIST = 'Checklist_Avarias';
 const CHECKLIST_STATUS_ABERTO = 'Aberto';
 const ABAST_EXPECTED_COLS = 6;
-const MEDIA_KM_L_PRECISION_FACTOR = 100;
 // Colunas totais da aba Rotas após inclusão de Km_Inicio e Km_Fim.
 const ROTAS_EXPECTED_COLS = 15;
 
@@ -872,7 +871,7 @@ function registrarAbastecimento(data) {
     }
     let mediaKmL = 0;
     if (ultimoKm !== null) {
-      mediaKmL = Math.round(((km - ultimoKm) / litros) * MEDIA_KM_L_PRECISION_FACTOR) / MEDIA_KM_L_PRECISION_FACTOR;
+      mediaKmL = Number(((km - ultimoKm) / litros).toFixed(2));
     }
     sheet.appendRow([placa, km, litros, valor, dataHora, mediaKmL]);
     return { success: true, mediaKmL: mediaKmL, ultimoKm: ultimoKm };
@@ -1118,7 +1117,9 @@ function _ensureAbastecimentosColumns(sheet) {
   try {
     const totalCols = Math.max(sheet.getLastColumn() || 0, 1);
     const header = sheet.getRange(1, 1, 1, totalCols).getValues()[0];
-    if (totalCols < 6 || header[5] !== 'Media_Km_L') sheet.getRange(1, 6).setValue('Media_Km_L');
+    if (totalCols < ABAST_EXPECTED_COLS || header[ABAST_EXPECTED_COLS - 1] !== 'Media_Km_L') {
+      sheet.getRange(1, ABAST_EXPECTED_COLS).setValue('Media_Km_L');
+    }
   } catch (err) {
     Logger.log('Falha ao garantir coluna de média de abastecimento: ' + err.message);
   }
@@ -1153,11 +1154,12 @@ function _obterUltimoKmAbastecimentoPorPlaca(rows, placa) {
 }
 
 function _normalizarEntradasChecklist(data) {
-  const itens = (data && Array.isArray(data.itens))
-    ? data.itens
-    : ((data && (data.parteCarro || data.descricaoAvaria))
-      ? [{ parteCarro: data.parteCarro, descricaoAvaria: data.descricaoAvaria }]
-      : []);
+  let itens = [];
+  if (data && Array.isArray(data.itens)) {
+    itens = data.itens;
+  } else if (data && (data.parteCarro || data.descricaoAvaria)) {
+    itens = [{ parteCarro: data.parteCarro, descricaoAvaria: data.descricaoAvaria }];
+  }
   return itens.map(function (item) {
     return {
       parteCarro: String((item && item.parteCarro) || '').trim(),
