@@ -871,7 +871,7 @@ function registrarAbastecimento(data) {
       return { success: false, error: 'Quilometragem deve ser maior que o último KM de abastecimento (' + ultimoKm + ').' };
     }
     let mediaKmL = 0;
-    if (ultimoKm !== null && litros > 0) {
+    if (ultimoKm !== null) {
       mediaKmL = Math.round(((km - ultimoKm) / litros) * MEDIA_KM_L_PRECISION_FACTOR) / MEDIA_KM_L_PRECISION_FACTOR;
     }
     sheet.appendRow([placa, km, litros, valor, dataHora, mediaKmL]);

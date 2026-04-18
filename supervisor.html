@@ -797,7 +797,7 @@
     <div class="form-group" style="margin-top:8px">
       <label class="form-label">Itens do checklist *</label>
       <div id="chk-itens"></div>
-      <button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="adicionarItemChecklist()">
+      <button class="btn btn-outline btn-sm" style="margin-top:4px" onclick="adicionarItemChecklist()" aria-label="Adicionar nova avaria ao checklist">
         ➕ Adicionar avaria
       </button>
     </div>
@@ -1669,6 +1669,7 @@ function adicionarItemChecklist(parte, avaria) {
   btnRemover.type = 'button';
   btnRemover.className = 'btn btn-outline btn-sm';
   btnRemover.textContent = '🗑 Remover';
+  btnRemover.setAttribute('aria-label', 'Remover item do checklist');
   actions.appendChild(btnRemover);
 
   btnRemover.addEventListener('click', function () {
