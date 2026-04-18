@@ -453,6 +453,7 @@
   <div class="tab"        onclick="selecionarTab('veiculos')">🚗 Veículos</div>
   <div class="tab"        onclick="selecionarTab('rastrear')">🔍 Rastrear</div>
   <div class="tab"        onclick="selecionarTab('abastecimento')" aria-label="Aba de abastecimento" title="Aba de abastecimento">⛽ Abastecimento</div>
+  <div class="tab"        onclick="selecionarTab('checklist')">📝 Checklist</div>
   <div class="tab"        onclick="selecionarTab('config')">⚙️ Config</div>
   <div class="tab"        onclick="selecionarTab('relatorios')">📄 Relatórios</div>
 </div>
@@ -743,6 +744,10 @@
                onkeydown="if(event.key==='Enter') carregarAbastecimentos()">
       </div>
     </div>
+    <div id="abast-resumo-card" class="card hidden" style="margin-top:0;margin-bottom:12px;background:#F7FAFF;border:1px solid #D8E6FF">
+      <div class="card-title" style="font-size:16px">📌 Resumo do veículo</div>
+      <div id="abast-resumo-body" style="font-size:13px;line-height:1.7;color:#234"></div>
+    </div>
     <div id="abast-empty" class="empty hidden">
       <div class="empty-icon">⛽</div>
       <div class="empty-text">Nenhum abastecimento registrado.</div>
@@ -753,6 +758,65 @@
           <tr><th>Placa</th><th>KM</th><th>Litros</th><th>Valor</th><th>Data/Hora</th></tr>
         </thead>
         <tbody id="abast-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB: CHECKLIST
+     ══════════════════════════════════════════════════════════ -->
+<div id="panel-checklist" class="tab-panel">
+  <div id="msg-checklist" class="hidden"></div>
+
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">📝 Registrar Avaria</div>
+        <div class="card-subtitle">Supervisor registra avarias por veículo para ciência do motorista</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="max-width:220px">
+        <label class="form-label" for="chk-placa">Placa *</label>
+        <input id="chk-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="AAA-0000">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label" for="chk-parte">Parte do carro *</label>
+        <input id="chk-parte" type="text" class="form-control" placeholder="Ex: Para-choque dianteiro">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="chk-avaria">Descrição da avaria *</label>
+      <textarea id="chk-avaria" class="form-control" rows="3" placeholder="Descreva a avaria identificada"></textarea>
+    </div>
+    <button class="btn btn-primary" style="width:auto;padding:10px 20px" onclick="registrarChecklistAvaria()">
+      💾 &nbsp; Registrar avaria
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📋 Avarias Registradas</div>
+      <button class="btn btn-outline btn-sm" onclick="carregarChecklistAvarias()">🔄 Atualizar</button>
+    </div>
+    <div class="form-row" style="margin-bottom:10px">
+      <div class="form-group" style="max-width:220px">
+        <label class="form-label" for="chk-filtro-placa">Filtrar por placa</label>
+        <input id="chk-filtro-placa" type="text" class="form-control" style="text-transform:uppercase" placeholder="Todas"
+               onkeydown="if(event.key==='Enter') carregarChecklistAvarias()">
+      </div>
+    </div>
+    <div id="chk-empty" class="empty hidden">
+      <div class="empty-icon">📝</div>
+      <div class="empty-text">Nenhuma avaria registrada.</div>
+    </div>
+    <div class="table-wrap">
+      <table id="chk-table">
+        <thead>
+          <tr><th>Placa</th><th>Parte</th><th>Avaria</th><th>Registro</th><th>Ciente motorista</th></tr>
+        </thead>
+        <tbody id="chk-body"></tbody>
       </table>
     </div>
   </div>
@@ -922,6 +986,8 @@ function callApi(action, data) {
 
 var autoRefreshTimer = null;
 var rotasAtivas      = [];
+var _abastecimentosCache = [];
+var _abastecimentoResumoCache = null;
 
 // ─── Login / Logout ────────────────────────────────────────────
 window.onload = function () {
@@ -988,7 +1054,7 @@ var _modalCallback = null;
 
 function mostrarConfirm(titulo, msg, callback, btnLabel, btnClass) {
   document.getElementById('modal-title').textContent = titulo || 'Confirmação';
-  document.getElementById('modal-msg').textContent   = msg;
+  document.getElementById('modal-msg').textContent   = sanitizarMensagem(msg);
   var ok = document.getElementById('modal-ok');
   ok.textContent = btnLabel || 'Confirmar';
   ok.className   = 'btn ' + (btnClass || 'btn-danger');
@@ -1013,7 +1079,7 @@ function selecionarTab(nome) {
   document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
   document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
   var tabs = document.getElementById('tabs').querySelectorAll('.tab');
-  var ordem = ['dashboard', 'veiculos', 'rastrear', 'abastecimento', 'config', 'relatorios'];
+  var ordem = ['dashboard', 'veiculos', 'rastrear', 'abastecimento', 'checklist', 'config', 'relatorios'];
   var idx   = ordem.indexOf(nome);
   if (idx >= 0) tabs[idx].classList.add('active');
   document.getElementById('panel-' + nome).classList.add('active');
@@ -1021,6 +1087,7 @@ function selecionarTab(nome) {
   if (nome === 'veiculos') { carregarVeiculos(); carregarMotoristas(); }
   if (nome === 'dashboard')  carregarRotasAtivas();
   if (nome === 'abastecimento') carregarAbastecimentos();
+  if (nome === 'checklist') carregarChecklistAvarias();
 }
 
 // ─── Utilitário DMS ───────────────────────────────────────────
@@ -1346,8 +1413,6 @@ function registrarAbastecimento() {
     'O registro de abastecimento é feito pelo painel do motorista.', 'error');
 }
 
-var _abastecimentosCache = [];
-
 function carregarAbastecimentos() {
   var filtroPlaca = document.getElementById('abast-filtro-placa');
   var placa = filtroPlaca ? filtroPlaca.value.trim().toUpperCase() : '';
@@ -1358,11 +1423,14 @@ function carregarAbastecimentos() {
         return;
       }
       var itens = res.itens || [];
+      var resumo = res.resumo || null;
       _abastecimentosCache = itens;
+      _abastecimentoResumoCache = resumo;
       var body = document.getElementById('abast-body');
       var emptyEl = document.getElementById('abast-empty');
       var tableEl = document.getElementById('abast-table');
       body.innerHTML = '';
+      renderResumoAbastecimento(resumo, placa);
       if (!itens.length) {
         emptyEl.classList.remove('hidden');
         tableEl.classList.add('hidden');
@@ -1384,6 +1452,45 @@ function carregarAbastecimentos() {
     .catch(function (err) {
       mostrarAlerta('msg-abastecimento', 'Erro: ' + (err.message || err), 'error');
     });
+}
+
+function renderResumoAbastecimento(resumo, placaFiltro) {
+  var card = document.getElementById('abast-resumo-card');
+  var body = document.getElementById('abast-resumo-body');
+  if (!card || !body) return;
+  if (!placaFiltro) {
+    card.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+  if (!resumo || !resumo.totalAbastecimentos) {
+    card.classList.remove('hidden');
+    body.innerHTML = 'Nenhum abastecimento encontrado para <strong>' + esc(placaFiltro) + '</strong>.';
+    return;
+  }
+  var cmpTxt = 'Sem dados de comparação.';
+  if (resumo.ultimoKmAbastecimento !== null && resumo.ultimoKmRegistrado !== null) {
+    var dif = Number(resumo.diferencaKm || 0);
+    var sinal = dif >= 0 ? '+' : '';
+    cmpTxt = sinal + dif.toFixed(1) + ' km (' + esc(resumo.origemKmRegistrado || 'KM registrado') + ' versus último KM de abastecimento)';
+  }
+  var mediaKm = resumo.mediaKmRodados !== null ? Number(resumo.mediaKmRodados).toFixed(2) + ' km' : '–';
+  var consumo = resumo.consumoMedioKml !== null ? Number(resumo.consumoMedioKml).toFixed(2) + ' km/L' : '–';
+  body.innerHTML =
+    '<strong>Placa:</strong> ' + esc(placaFiltro) + '<br>' +
+    '<strong>Total de abastecimentos:</strong> ' + esc(String(resumo.totalAbastecimentos || 0)) + '<br>' +
+    '<strong>Último KM abastecimento:</strong> ' +
+      (resumo.ultimoKmAbastecimento !== null ? esc(Number(resumo.ultimoKmAbastecimento).toFixed(1)) : '–') + '<br>' +
+    '<strong>Último KM registrado:</strong> ' +
+      (resumo.ultimoKmRegistrado !== null ? esc(Number(resumo.ultimoKmRegistrado).toFixed(1)) : '–') + '<br>' +
+    '<strong>Comparação KM:</strong> ' + esc(cmpTxt) + '<br>' +
+    '<strong>KM rodados (intervalos):</strong> ' +
+      (resumo.kmRodadosTotal !== null ? esc(Number(resumo.kmRodadosTotal).toFixed(2) + ' km') : '–') + '<br>' +
+    '<strong>Média de KM rodados:</strong> ' + esc(mediaKm) + '<br>' +
+    '<strong>Média de consumo:</strong> ' + esc(consumo) + '<br>' +
+    '<strong>Litros totais:</strong> ' + esc(Number(resumo.totalLitros || 0).toFixed(2) + ' L') + '<br>' +
+    '<strong>Valor total:</strong> R$ ' + esc(Number(resumo.totalValor || 0).toFixed(2));
+  card.classList.remove('hidden');
 }
 
 function baixarAbastecimentosPDF() {
@@ -1436,7 +1543,19 @@ function baixarAbastecimentosPDF() {
     '<div class="totais"><strong>Totais:</strong> ' +
     itens.length + ' abastecimento(s) &nbsp;|&nbsp; ' +
     totalLitros.toFixed(2) + ' L &nbsp;|&nbsp; R$ ' + totalValor.toFixed(2) +
-    '</div>' +
+      '</div>' +
+    (function () {
+      var r = _abastecimentoResumoCache;
+      if (!r || !placa || !r.totalAbastecimentos) return '';
+      return '<div class="totais" style="margin-top:10px">' +
+        '<strong>Resumo da placa ' + esc(placa) + ':</strong><br>' +
+        'Último KM abastecimento: ' + (r.ultimoKmAbastecimento !== null ? Number(r.ultimoKmAbastecimento).toFixed(1) : '–') + '<br>' +
+        'Último KM registrado: ' + (r.ultimoKmRegistrado !== null ? Number(r.ultimoKmRegistrado).toFixed(1) : '–') + '<br>' +
+        'Diferença KM: ' + (r.diferencaKm !== null ? Number(r.diferencaKm).toFixed(1) : '–') + '<br>' +
+        'Média KM rodados: ' + (r.mediaKmRodados !== null ? Number(r.mediaKmRodados).toFixed(2) : '–') + '<br>' +
+        'Média consumo (km/L): ' + (r.consumoMedioKml !== null ? Number(r.consumoMedioKml).toFixed(2) : '–') +
+      '</div>';
+    })() +
     '<div class="no-print" style="margin-top:20px;text-align:center">' +
     '<button onclick="window.print()" style="padding:10px 20px;background:#1565C0;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:14px">🖨 Imprimir / Salvar como PDF</button>' +
     '</div>' +
@@ -1450,6 +1569,76 @@ function baixarAbastecimentosPDF() {
   w.document.open();
   w.document.write(html);
   w.document.close();
+}
+
+function registrarChecklistAvaria() {
+  var placa = document.getElementById('chk-placa').value.trim().toUpperCase();
+  var parte = document.getElementById('chk-parte').value.trim();
+  var avaria = document.getElementById('chk-avaria').value.trim();
+  if (!placa) { mostrarAlerta('msg-checklist', 'Informe a placa.', 'error'); return; }
+  if (!parte) { mostrarAlerta('msg-checklist', 'Informe a parte do carro.', 'error'); return; }
+  if (!avaria) { mostrarAlerta('msg-checklist', 'Informe a avaria.', 'error'); return; }
+  esconderAlerta('msg-checklist');
+  callApi('registrarChecklistAvaria', {
+    placa: placa,
+    parteCarro: parte,
+    descricaoAvaria: avaria,
+    registradoPor: 'Supervisor'
+  })
+    .then(function (res) {
+      if (res && res.success) {
+        mostrarAlerta('msg-checklist', '✅ Checklist registrado com sucesso.', 'success');
+        document.getElementById('chk-placa').value = '';
+        document.getElementById('chk-parte').value = '';
+        document.getElementById('chk-avaria').value = '';
+        carregarChecklistAvarias();
+      } else {
+        mostrarAlerta('msg-checklist', 'Erro: ' + ((res && res.error) || ''), 'error');
+      }
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-checklist', 'Erro: ' + (err.message || err), 'error');
+    });
+}
+
+function carregarChecklistAvarias() {
+  var placa = document.getElementById('chk-filtro-placa');
+  var filtroPlaca = placa ? placa.value.trim().toUpperCase() : '';
+  callApi('listarChecklistAvarias', { placa: filtroPlaca })
+    .then(function (res) {
+      if (!res || !res.success) {
+        mostrarAlerta('msg-checklist', 'Erro: ' + ((res && res.error) || ''), 'error');
+        return;
+      }
+      var itens = res.itens || [];
+      var body = document.getElementById('chk-body');
+      var emptyEl = document.getElementById('chk-empty');
+      var tableEl = document.getElementById('chk-table');
+      body.innerHTML = '';
+      if (!itens.length) {
+        emptyEl.classList.remove('hidden');
+        tableEl.classList.add('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      tableEl.classList.remove('hidden');
+      itens.forEach(function (it) {
+        var tr = document.createElement('tr');
+        var ciente = it.cienteMotorista
+          ? esc(it.cienteMotorista) + (it.cienteEm ? ' (' + esc(formatarData(it.cienteEm)) + ')' : '')
+          : 'Pendente';
+        tr.innerHTML =
+          '<td><code>' + esc(it.placa) + '</code></td>' +
+          '<td>' + esc(it.parteCarro) + '</td>' +
+          '<td>' + esc(it.descricaoAvaria) + '</td>' +
+          '<td style="white-space:nowrap">' + esc(formatarData(it.registradoEm)) + '</td>' +
+          '<td>' + ciente + '</td>';
+        body.appendChild(tr);
+      });
+    })
+    .catch(function (err) {
+      mostrarAlerta('msg-checklist', 'Erro: ' + (err.message || err), 'error');
+    });
 }
 
 // ─── Veículos ──────────────────────────────────────────────────
@@ -1825,14 +2014,14 @@ function mostrarAlerta(id, msg, tipo) {
   var el = document.getElementById(id);
   if (!el) return;
   el.className = 'alert alert-' + tipo;
-  el.textContent = msg;
+  el.textContent = sanitizarMensagem(msg);
   el.classList.remove('hidden');
 }
 
 function mostrarAlertaEl(el, msg, tipo) {
   if (!el) return;
   el.className = 'alert alert-' + tipo;
-  el.textContent = msg;
+  el.textContent = sanitizarMensagem(msg);
   el.classList.remove('hidden');
 }
 
@@ -1865,6 +2054,13 @@ function esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function sanitizarMensagem(msg) {
+  return String(msg || '')
+    .replace(/https?:\/\/[^\s)]+/gi, '[link oculto]')
+    .replace(/\b[\w.-]+\.github\.io\/[^\s)]+/gi, '[link oculto]')
+    .replace(/\bscript\.google\.com\/[^\s)]+/gi, '[link oculto]');
 }
 
 function fmtVel(v) {
