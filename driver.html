@@ -573,6 +573,9 @@ var estado = {
   ultimaGpsTsMs: 0
 };
 var MOTORISTA_AUTH_KEY = 'motoristaAuthNome';
+var MOTORISTA_AUTH_TS_KEY = 'motoristaAuthTs';
+var MOTORISTA_AUTH_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+var MAX_CHECKLIST_PREVIEW_ITEMS = 3;
 var _checklistAvisoKey = '';
 
 // ─── Inicialização ────────────────────────────────────────────
@@ -585,6 +588,13 @@ window.onload = function () {
     });
 
   var nomeSessao = (sessionStorage.getItem(MOTORISTA_AUTH_KEY) || localStorage.getItem(MOTORISTA_AUTH_KEY) || '').trim();
+  var authTs = Number(localStorage.getItem(MOTORISTA_AUTH_TS_KEY) || 0);
+  if (nomeSessao && authTs && (Date.now() - authTs > MOTORISTA_AUTH_MAX_AGE_MS)) {
+    sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
+    localStorage.removeItem(MOTORISTA_AUTH_KEY);
+    localStorage.removeItem(MOTORISTA_AUTH_TS_KEY);
+    nomeSessao = '';
+  }
   var placaInput = document.getElementById('placa');
   if (placaInput) {
     placaInput.addEventListener('blur', function () {
@@ -600,12 +610,14 @@ window.onload = function () {
         } else {
           sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
           localStorage.removeItem(MOTORISTA_AUTH_KEY);
+          localStorage.removeItem(MOTORISTA_AUTH_TS_KEY);
           mostrarTela('tela-login');
         }
       })
       .catch(function () {
         sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
         localStorage.removeItem(MOTORISTA_AUTH_KEY);
+        localStorage.removeItem(MOTORISTA_AUTH_TS_KEY);
         mostrarTela('tela-login');
       });
   } else {
@@ -643,6 +655,7 @@ function _concluirLoginMotorista(nome, silencioso) {
   esconderErro(document.getElementById('err-login'));
   sessionStorage.setItem(MOTORISTA_AUTH_KEY, estado.nome);
   localStorage.setItem(MOTORISTA_AUTH_KEY, estado.nome);
+  localStorage.setItem(MOTORISTA_AUTH_TS_KEY, String(Date.now()));
 
   callApi('buscarRotaAtivaMotorista', { nome: estado.nome })
     .then(function (res) {
@@ -682,6 +695,7 @@ function _concluirLoginMotorista(nome, silencioso) {
       if (silencioso) {
         sessionStorage.removeItem(MOTORISTA_AUTH_KEY);
         localStorage.removeItem(MOTORISTA_AUTH_KEY);
+        localStorage.removeItem(MOTORISTA_AUTH_TS_KEY);
         mostrarTela('tela-login');
         return;
       }
@@ -1193,10 +1207,12 @@ function notificarChecklistPendente(placa, mostrarMesmoSeJaVisto) {
       if (!mostrarMesmoSeJaVisto && _checklistAvisoKey === chave) return;
       _checklistAvisoKey = chave;
 
-      var preview = res.itens.slice(0, 3).map(function (it) {
+      var preview = res.itens.slice(0, MAX_CHECKLIST_PREVIEW_ITEMS).map(function (it) {
         return '- ' + String(it.parteCarro || '') + ': ' + String(it.descricaoAvaria || '');
       }).join('\n');
-      var extra = res.itens.length > 3 ? '\n... e mais ' + (res.itens.length - 3) + ' registro(s).' : '';
+      var extra = res.itens.length > MAX_CHECKLIST_PREVIEW_ITEMS
+        ? '\n... e mais ' + (res.itens.length - MAX_CHECKLIST_PREVIEW_ITEMS) + ' registro(s).'
+        : '';
       var mensagem = 'Checklist de avarias para ' + placaUp + ':\n' + preview + extra +
         '\n\nClique em "Estou ciente" para registrar ciência, ou em "Cancelar" para apenas conferir.';
 

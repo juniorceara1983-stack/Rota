@@ -962,6 +962,8 @@ function confirmarCienciaChecklist(data) {
     const ids = (data && data.ids && Array.isArray(data.ids)) ? data.ids.map(function (id) {
       return String(id || '').trim();
     }).filter(function (id) { return !!id; }) : [];
+    const idsLookup = {};
+    for (let i = 0; i < ids.length; i++) idsLookup[ids[i]] = true;
     const placa = String((data && data.placa) || '').toUpperCase().trim();
     const motorista = String((data && data.motorista) || '').trim();
     const cienteEm = (data && data.timestamp) ? String(data.timestamp) : new Date().toISOString();
@@ -971,7 +973,7 @@ function confirmarCienciaChecklist(data) {
       const idRow = String(rows[i][0] || '').trim();
       const placaRow = String(rows[i][1] || '').toUpperCase().trim();
       const statusRow = String(rows[i][4] || '').trim() || CHECKLIST_STATUS_ABERTO;
-      const matchById = ids.length > 0 && ids.indexOf(idRow) >= 0;
+      const matchById = ids.length > 0 && !!idsLookup[idRow];
       const matchByPlaca = ids.length === 0 && placa && placaRow === placa && statusRow === CHECKLIST_STATUS_ABERTO;
       if (!matchById && !matchByPlaca) continue;
       sheet.getRange(i + 1, 8).setValue(motorista);
